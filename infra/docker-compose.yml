@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: prefect
+      POSTGRES_PASSWORD: prefect
+      POSTGRES_DB: prefect
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - prefect-net
+
+  prefect-server:
+    image: prefecthq/prefect:2.16.4-python3.12
+    command: prefect server start --host 0.0.0.0 --port 4200
+    environment:
+      - PREFECT_HOME=/root/.prefect
+    ports:
+      - "4200:4200"
+    volumes:
+      - prefect_data:/root/.prefect
+    depends_on:
+      - postgres
+    networks:
+      - prefect-net
+
+volumes:
+  pgdata:
+  prefect_data:
+
+networks:
+  prefect-net:

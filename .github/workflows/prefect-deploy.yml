@@ -1,0 +1,44 @@
+name: Deploy Prefect Flow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: windows-latest  # Mantido para Windows
+
+    steps:
+      - name: 🔁 Checkout do código
+        uses: actions/checkout@v3
+
+      - name: 🐍 Instalar Python 3.12.5
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12.5"
+
+      - name: 📦 Instalar dependências
+        run: |
+          $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
+          python -m pip install -U pip
+          python -m pip install -r requirements.txt
+          python -m pip install prefect==2.16.4
+
+      - name: 🧪 Executar Testes Unitários
+        run: |
+          python -m unittest discover -s tests -p "*.py"
+
+
+      - name: 🔗 Configurar conexão com Prefect Server
+        run: |
+          prefect config set PREFECT_API_URL="http://localhost:4200/api"
+          prefect profile ls 
+
+      - name: Deploy do Flow com retry
+        run: |
+          for ($i=1; $i -le 5; $i++) {
+            prefect deploy -n hello-deploy
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep -Seconds 5
+          }
