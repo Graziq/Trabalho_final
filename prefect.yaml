@@ -3,10 +3,13 @@
 # control along with your flow code.
 
 # Generic metadata about this project
-name: Trabalho_final
+name: Simulacao_Contingencia_Eletrica # Nome do seu projeto (pode ser o nome do repositório)
 prefect-version: 2.16.4
 
 # build section allows you to manage and build docker images
+# Manter como null por enquanto, a menos que você queira Dockerizar seu ambiente.
+# Para este exemplo, estamos assumindo que as dependências (pandapower, networkx, pandas)
+# estão instaladas no ambiente onde o agente Prefect está rodando.
 build: null
 
 # push section allows you to manage if and how this project is uploaded to remote locations
@@ -15,31 +18,31 @@ push: null
 # pull section allows you to provide instructions for cloning this project in remote locations
 pull:
 - prefect.deployments.steps.git_clone:
-    repository: https://github.com/Graziq/Trabalho_final.git
-    branch: main
-    access_token: null
+    repository: https://github.com/Graziq/Trabalho_final.git # Seu repositório
+    branch: main # A branch que contém o código do seu fluxo
+    access_token: null # Se o repositório for privado, você precisaria de um token aqui
 
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
-- name: hello-deploy
-  version: null
-  tags: []
-  description: null
-  schedule: {}
-  flow_name: null
-  entrypoint: src/flows/hello_world.py:hello_flow
-  parameters: {}
+# Removido o 'hello-deploy' antigo para focar no novo.
+# Se você quiser manter ambos, copie e cole o bloco de deployment e altere os detalhes.
+- name: simulacao-contingencia-ieee30 # Nome do seu deployment (identificador único para esta execução do fluxo)
+  version: "1.0" # Versão do seu deployment, útil para controle
+  tags: ["simulacao", "contingencia", "ieee30"] # Tags para organizar e filtrar na UI do Prefect
+  description: >
+    Deployment para o fluxo de simulação de contingências N-1 na rede IEEE 30 barras,
+    com variação de cenários e análise de impacto de tensão.
+  schedule: {} # Manter vazio se quiser rodar manualmente ou via API.
+                # Se quiser agendar, preencha como no seu exemplo anterior (interval, anchor_date, etc.).
+  flow_name: simulacao_contingencia_flow # <--- MUITO IMPORTANTE: Nome da função @flow no seu código Python
+  entrypoint: resultados2.py:simulacao_contingencia_flow 
+  parameters:
+    n_cenarios: 5 # Define o valor padrão para o parâmetro `n_cenarios` do seu fluxo
+    vmax: 1.093   # Define o valor padrão para o parâmetro `vmax` do seu fluxo
+    vmin: 0.94    # Define o valor padrão para o parâmetro `vmin` do seu fluxo
+    line_loading_max: 120 # Define o valor padrão para o parâmetro `line_loading_max` do seu fluxo
   work_pool:
-    name: hello-pool
-    work_queue_name: default
-    job_variables: {}
-    version: "1.0"
-    tags:
-    description: >
-      Versão 1 do desenvolvimento do trabalho. - criação do repositório
-      
-    schedule:
-      interval: 3600
-      anchor_date: "2025-05-28T21:00:00+00:00"
-      timezone: "UTC"
-      active: true
+    name: default-agent-pool # <--- Nome do Work Pool que seu agente Prefect está escutando.
+                             # Geralmente 'default-agent-pool' se você não o renomeou.
+    work_queue_name: default # Fila padrão, geralmente 'default'.
+    job_variables: {} # Variáveis de ambiente ou outras configs para o job runner

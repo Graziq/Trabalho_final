@@ -1,6 +1,9 @@
 prefect==2.16.4
 griffe==0.35.2
 docker
-pyyaml
+PyYAML
 pandas
 pandapower
+pipdeptree
+matplotlib
+numba
