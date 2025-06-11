@@ -24,5 +24,4 @@ deployments:
       line_loading_max: 120
     work_pool:
       name: default-agent-pool
-      work_queue_name: default
       job_variables: {}
