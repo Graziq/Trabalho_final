@@ -1,27 +1,35 @@
-name: Simulacao_Contingencia_Eletrica
-prefect-version: 2.16.4
-
-pull:
-  - prefect.deployments.steps.git_clone:
-      repository: https://github.com/Graziq/Trabalho_final.git
-      branch: main
-      access_token: null
+# prefect.yaml
+build:
+- prefect.projects.steps.git_clone:
+    repository: https://github.com/Graziq/Trabalho_final.git
+    branch: main # Mantenha a branch correta aqui, se não for 'main'
 
 deployments:
-  - name: simulacao-contingencia-ieee30
-    version: "1.0"
-    tags: ["simulacao", "contingencia", "ieee30"]
-    description: |
-      Deployment para o fluxo de simulação de contingências N-1 na rede IEEE 30 barras,
-      com variação de cenários e análise de impacto de tensão.
-    flow_name: simulacao_contingencia_flow
-    entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
-    parameters:
-      n_cenarios: 5
-      vmax: 1.093
-      vmin: 0.94
-      line_loading_max: 120
-    work_pool:
-      name: default-agent-pool
-      job_variables: {}
+- name: simulacao-contingencia-ieee30
+  version: 1
+  description: Flow para simular contingências N-1 em rede IEEE 30 barras.
+  entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
+  parameters:
+    n_cenarios: 3
+  tags:
+    - simulacao
+    - ieee30
+    - contingencia
+  work_pool:
+    name: default-agent-pool # Nome do seu Work Pool
+    type: docker # Tipo do seu Work Pool
 
+- name: analise-impacto-ieee30
+  version: 1
+  description: Flow para analisar o impacto de tensão pós-contingência N-1.
+  entrypoint: src/flows/resultados2.py:analise_impacto_flow
+  parameters:
+    input_csv_path: "tensao_barras_nao_criticos_ieee30.csv"
+    num_barras: 30
+  tags:
+    - analise
+    - impacto
+    - ieee30
+  work_pool:
+    name: default-agent-pool # Use o mesmo Work Pool para ambos os deployments
+    type: docker # Tipo do seu Work Pool
