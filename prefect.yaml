@@ -11,10 +11,9 @@ deployments:
   - name: simulacao-contingencia-ieee30
     version: "1.0"
     tags: ["simulacao", "contingencia", "ieee30"]
-    description: >
+    description: |
       Deployment para o fluxo de simulação de contingências N-1 na rede IEEE 30 barras,
       com variação de cenários e análise de impacto de tensão.
-    schedule: {}
     flow_name: simulacao_contingencia_flow
     entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
     parameters:
@@ -25,3 +24,4 @@ deployments:
     work_pool:
       name: default-agent-pool
       job_variables: {}
+
