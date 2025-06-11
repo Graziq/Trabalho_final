@@ -35,7 +35,7 @@ deployments:
   schedule: {} # Manter vazio se quiser rodar manualmente ou via API.
                 # Se quiser agendar, preencha como no seu exemplo anterior (interval, anchor_date, etc.).
   flow_name: simulacao_contingencia_flow # <--- MUITO IMPORTANTE: Nome da função @flow no seu código Python
-  entrypoint: resultados2.py:simulacao_contingencia_flow 
+  entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow 
   parameters:
     n_cenarios: 5 # Define o valor padrão para o parâmetro `n_cenarios` do seu fluxo
     vmax: 1.093   # Define o valor padrão para o parâmetro `vmax` do seu fluxo
