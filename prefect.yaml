@@ -1,41 +1,28 @@
-# Welcome to your prefect.yaml file! You can use this file for storing and managing
-# configuration for deploying your flows. We recommend committing this file to source
-# control along with your flow code.
-
-# Generic metadata about this project
-name: Simulacao_Contingencia_Eletrica # Nome do seu projeto (pode ser o nome do repositório)
+name: Simulacao_Contingencia_Eletrica
 prefect-version: 2.16.4
 
-# build section allows you to manage and build docker images
-build: null
-
-# push section allows you to manage if and how this project is uploaded to remote locations
-push: null
-
-# pull section allows you to provide instructions for cloning this project in remote locations
 pull:
   - prefect.deployments.steps.git_clone:
-      repository: https://github.com/Graziq/Trabalho_final.git # Seu repositório
-      branch: main # A branch que contém o código do seu fluxo
-      access_token: null # Se o repositório for privado, você precisaria de um token aqui
+      repository: https://github.com/Graziq/Trabalho_final.git
+      branch: main
+      access_token: null
 
-# the deployments section allows you to provide configuration for deploying flows
 deployments:
-  - name: simulacao-contingencia-ieee30 # Nome do seu deployment (identificador único para esta execução do fluxo)
-    version: "1.0" # Versão do seu deployment, útil para controle
-    tags: ["simulacao", "contingencia", "ieee30"] # Tags para organizar e filtrar na UI do Prefect
+  - name: simulacao-contingencia-ieee30
+    version: "1.0"
+    tags: ["simulacao", "contingencia", "ieee30"]
     description: >
       Deployment para o fluxo de simulação de contingências N-1 na rede IEEE 30 barras,
       com variação de cenários e análise de impacto de tensão.
-    schedule: {} # Manter vazio se quiser rodar manualmente ou via API.
-    flow_name: simulacao_contingencia_flow # <--- MUITO IMPORTANTE: Nome da função @flow no seu código Python
+    schedule: {}
+    flow_name: simulacao_contingencia_flow
     entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
     parameters:
-      n_cenarios: 5 # Define o valor padrão para o parâmetro `n_cenarios` do seu fluxo
-      vmax: 1.093   # Define o valor padrão para o parâmetro `vmax` do seu fluxo
-      vmin: 0.94    # Define o valor padrão para o parâmetro `vmin` do seu fluxo
-      line_loading_max: 120 # Define o valor padrão para o parâmetro `line_loading_max` do seu fluxo
+      n_cenarios: 5
+      vmax: 1.093
+      vmin: 0.94
+      line_loading_max: 120
     work_pool:
-      name: default-agent-pool # <--- Nome do Work Pool que seu agente Prefect está escutando.
-      work_queue_name: default # Fila padrão, geralmente 'default'.
-      job_variables: {} # Variáveis de ambiente ou outras configs para o job runner
+      name: default-agent-pool
+      work_queue_name: default
+      job_variables: {}

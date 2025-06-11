@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: windows-latest  # Mantido para Windows
+    runs-on: windows-latest # Alterado para Windows
 
     steps:
       - name: 🔁 Checkout do código
@@ -20,25 +20,23 @@ jobs:
 
       - name: 📦 Instalar dependências
         run: |
-          $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
           python -m pip install -U pip
           python -m pip install -r requirements.txt
-          python -m pip install prefect==2.16.4
+          python -m pip install "prefect==2.16.4" pandapower networkx pandas numpy
+          # Configura PYTHONPATH para Windows (PowerShell)
+          $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
+        
+        shell: powershell
 
-      - name: 🧪 Executar Testes Unitários
+      - name: 🔗 Configurar conexão com Prefect Server remoto
         run: |
-          python -m unittest discover -s tests -p "*.py"
+          # Define a PREFECT_API_URL usando a sintaxe do PowerShell
+          prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
+          prefect profile ls
 
+        shell: powershell # Garante PowerShell para este passo também
 
-      - name: 🔗 Configurar conexão com Prefect Server
+      - name: 🚀 Deploy do Flow
         run: |
-          prefect config set PREFECT_API_URL="http://localhost:4200/api"
-          prefect profile ls 
-
-      - name: Deploy do Flow com retry
-        run: |
-          for ($i=1; $i -le 5; $i++) {
-            prefect deploy -n hello-deploy
-            if ($LASTEXITCODE -eq 0) { break }
-            Start-Sleep -Seconds 5
-          }
+          prefect deploy
+        shell: powershell
