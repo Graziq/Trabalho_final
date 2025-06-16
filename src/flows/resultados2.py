@@ -11,6 +11,7 @@ from prefect.artifacts import create_markdown_artifact
 from prefect.context import get_run_context
 import io
 import sys
+import os
 
 # --- 1. Defina um diretório base para todos os arquivos de saída ---
 # Este é o caminho ABSOLUTO no seu sistema onde você quer que os arquivos sejam salvos.
