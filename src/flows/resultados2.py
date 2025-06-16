@@ -148,7 +148,7 @@ def simular_desligamento_e_verificar_ilhamento(net_copy, linha):
     Prepara uma rede para uma contingência de linha, desliga a linha
     e verifica se houve ilhamento. Retorna a rede modificada e o status de ilhamento.
     """
-    net_contingencia_copy = pp.copy_net(net_copy) # Garante que a contingência não afete o net_copy original
+    net_contingencia_copy = pp.from_json_string(pp.to_json(net_copy)) # Garante que a contingência não afete o net_copy original
     net_contingencia_copy.line.at[linha, 'in_service'] = False
 
     ilhamento_detectado = False
