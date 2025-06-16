@@ -10,6 +10,11 @@ from prefect import flow, task
 from prefect.artifacts import create_markdown_artifact
 from prefect.context import get_run_context
 
+
+# --- Adicione esta linha AQUI ---
+print(f"DEBUG: pandapower version in worker: {pp.__version__}")
+# --- Fim da linha a ser adicionada ---
+
 # --- Funções/Tasks Auxiliares Inalteradas ---
 
 @task
