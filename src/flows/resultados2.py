@@ -6,18 +6,17 @@ import networkx as nx
 import pandas as pd
 import numpy as np
 
-from prefect import flow, task # Importa os decoradores flow e task do Prefect
-from prefect.artifacts import create_markdown_artifact # Opcional: para criar relatórios na UI do Prefect
-from prefect.context import get_run_context # Opcional: para obter informações do run do Prefect
+from prefect import flow, task
+from prefect.artifacts import create_markdown_artifact
+from prefect.context import get_run_context
 
-# --- Tarefas (Tasks) ---
+# --- Funções/Tasks Auxiliares Inalteradas ---
 
 @task
-def criar_rede_ieee30_slack_bar_task():
+def criar_rede_ieee30_slack_bar():
     """
-    TASK: Cria a rede IEEE 30 barras e configura a barra slack,
+    Cria a rede IEEE 30 barras e configura a barra slack,
     garantindo que os limites de reativos dos geradores estejam bem definidos.
-    Retorna o objeto da rede.
     """
     net = pn.case30()
 
@@ -32,42 +31,41 @@ def criar_rede_ieee30_slack_bar_task():
 
         if pd.isna(q_min) or q_min == 0.0:
             net.gen.at[idx, 'q_mvar_min'] = -50.0
-        
+
         if pd.isna(q_max) or q_max == 0.0:
             net.gen.at[idx, 'q_mvar_max'] = 50.0
-            
+
     net.gen['slack'] = False
     gen_idx_at_bus0 = net.gen[net.gen['bus'] == 0].index
+
     if not gen_idx_at_bus0.empty:
         net.gen.at[gen_idx_at_bus0[0], 'slack'] = True
     else:
-        pp.create_gen(net, bus=0, p_mw=0, vm_pu=1.0, slack=True, q_mvar_min=-50, q_mvar_max=50) 
-    
+        pp.create_gen(net, bus=0, p_mw=0, vm_pu=1.0, slack=True, q_mvar_min=-50, q_mvar_max=50)
+
     return net
 
 @task
-def gerar_dados_cenario_task(net_base, cenario_id):
+def gerar_dados_cenario(net, cenario_id=None):
     """
-    TASK: Gera um conjunto de dados aleatórios para um cenário específico,
+    Gera um conjunto de dados aleatórios para um cenário específico,
     introduzindo variações nas cargas e geradores da rede.
-    Retorna um dicionário com os dados do cenário.
     """
     dados = {}
-    
-    for idx in net_base.load.index:
-        p_original = net_base.load.at[idx, 'p_mw']
-        q_original = net_base.load.at[idx, 'q_mvar']
+    for idx in net.load.index:
+        p_original = net.load.at[idx, 'p_mw']
+        q_original = net.load.at[idx, 'q_mvar']
         dados[f'carga_p_mw_{idx}'] = p_original * random.uniform(0.95, 1.05)
         dados[f'carga_q_mvar_{idx}'] = q_original * random.uniform(0.90, 1.10)
 
-    for idx in net_base.gen.index:
-        p_original = net_base.gen.at[idx, 'p_mw']
-        vm_original = net_base.gen.at[idx, 'vm_pu']
-        q_mvar_min_original = net_base.gen.at[idx, 'q_mvar_min']
-        q_mvar_max_original = net_base.gen.at[idx, 'q_mvar_max']
-        
+    for idx in net.gen.index:
+        p_original = net.gen.at[idx, 'p_mw']
+        vm_original = net.gen.at[idx, 'vm_pu']
+        q_mvar_min_original = net.gen.at[idx, 'q_mvar_min']
+        q_mvar_max_original = net.gen.at[idx, 'q_mvar_max']
+
         dados[f'gen_p_mw_{idx}'] = p_original * random.uniform(0.95, 1.05)
-        if net_base.gen.at[idx, 'slack']:
+        if net.gen.at[idx, 'slack']:
             dados[f'gen_vm_pu_{idx}'] = vm_original
         else:
             dados[f'gen_vm_pu_{idx}'] = vm_original * random.uniform(0.995, 1.005)
@@ -76,28 +74,30 @@ def gerar_dados_cenario_task(net_base, cenario_id):
         new_q_mvar_max = q_mvar_max_original * random.uniform(0.90, 1.10)
         dados[f'gen_q_mvar_min_{idx}'] = min(new_q_mvar_min, new_q_mvar_max)
         dados[f'gen_q_mvar_max_{idx}'] = max(new_q_mvar_min, new_q_mvar_max)
-        dados[f'gen_slack_{idx}'] = net_base.gen.at[idx, 'slack']
+        dados[f'gen_slack_{idx}'] = net.gen.at[idx, 'slack']
 
-    if not net_base.shunt.empty:
-        for idx in net_base.shunt.index:
-            q_original = net_base.shunt.at[idx, 'q_mvar']
+    if not net.shunt.empty:
+        for idx in net.shunt.index:
+            q_original = net.shunt.at[idx, 'q_mvar']
             dados[f'shunt_q_mvar_{idx}'] = q_original * random.uniform(0.90, 1.10)
 
-    dados['cenario'] = cenario_id
+    if cenario_id is not None:
+        dados['cenario'] = cenario_id
     return dados
 
 @task
-def aplicar_dados_ao_net_task(net, dados):
+def aplicar_dados_ao_net(net, dados):
     """
-    TASK: Aplica os dados de um cenário específico à rede pandapower.
-    Retorna o objeto da rede modificado.
+    Aplica os dados de um cenário específico (gerados por gerar_dados_cenario)
+    à rede pandapower.
     """
-    # Cria uma cópia profunda da rede para evitar modificações indesejadas
-    # em outras tasks que possam estar usando a mesma rede base.
+    # É importante copiar a rede ANTES de aplicar os dados se você quiser manter a rede original intacta
+    # para múltiplos cenários ou operações futuras.
     net_copy = pp.copy_net(net) 
-
+    
     for idx in net_copy.load.index:
         net_copy.load.at[idx, 'p_mw'] = dados[f'carga_p_mw_{idx}']
+    for idx in net_copy.load.index: # Loop separado para q_mvar para evitar erros de indexação
         net_copy.load.at[idx, 'q_mvar'] = dados[f'carga_q_mvar_{idx}']
 
     for idx in net_copy.gen.index:
@@ -110,44 +110,38 @@ def aplicar_dados_ao_net_task(net, dados):
     if not net_copy.shunt.empty:
         for idx in net_copy.shunt.index:
             net_copy.shunt.at[idx, 'q_mvar'] = dados[f'shunt_q_mvar_{idx}']
-    return net_copy
+            
+    return net_copy # Retorna a rede copiada e modificada
 
-
-@task(retries=3, retry_delay_seconds=10) # Tenta rodar 3 vezes com 10s de atraso em caso de falha
-def rodar_fluxo_potencia_task(net):
+@task(retries=3, retry_delay_seconds=10)
+def rodar_fluxo_potencia(net):
     """
-    TASK: Roda o fluxo de potência para a rede.
-    Retorna as tensões das barras (vm_pu) como um dicionário,
-    ou um dicionário de NaNs se não convergir.
+    Executa o fluxo de potência usando pandapower.
+    Retorna o objeto da rede com os resultados e um booleano de convergência.
     """
     try:
         pp.runpp(net, numba=False, init='flat')
-        return net.res_bus.vm_pu.to_dict(), True # Retorna o resultado e um flag de sucesso
+        return net, True
     except pp.LoadflowNotConverged:
         print("Fluxo de potência NÃO convergiu.")
-        # Retorna NaN para todas as barras se não convergir
-        return {bus: float('nan') for bus in net.bus.index}, False
-
+        # Se não convergir, preenche os resultados de tensão com NaN para manter a estrutura
+        for bus_idx in net.bus.index:
+            if bus_idx not in net.res_bus.index: # Garante que o índice existe
+                net.res_bus.loc[bus_idx, 'vm_pu'] = np.nan
+        return net, False
 
 @task
-def desligar_linha_e_verificar_ilhamento_task(net_base, linha, dados_cenario):
+def simular_desligamento_e_verificar_ilhamento(net_copy, linha):
     """
-    TASK: Prepara uma rede para uma contingência de linha, desliga a linha
-    e verifica se houve ilhamento.
-    Retorna a rede modificada, o status de ilhamento e os dados da linha.
+    Prepara uma rede para uma contingência de linha, desliga a linha
+    e verifica se houve ilhamento. Retorna a rede modificada e o status de ilhamento.
     """
-    net = criar_rede_ieee30_slack_bar_task.run() # Cria uma nova rede para a contingência
-    net = aplicar_dados_ao_net_task.run(net, dados_cenario) # Aplica os dados do cenário
-    
-    # Desliga a linha
-    original_line_status = net.line.at[linha, 'in_service']
-    net.line.at[linha, 'in_service'] = False
+    net_contingencia_copy = pp.copy_net(net_copy) # Garante que a contingência não afete o net_copy original
+    net_contingencia_copy.line.at[linha, 'in_service'] = False
 
     ilhamento_detectado = False
-    status_contingencia = 'normal'
-
-    graph = create_nxgraph(net, respect_switches=True)
-    slack_buses = net.gen[net.gen['slack']].bus.values
+    graph = create_nxgraph(net_contingencia_copy, respect_switches=True)
+    slack_buses = net_contingencia_copy.gen[net_contingencia_copy['slack']].bus.values
     componentes = list(nx.connected_components(graph))
 
     for component in componentes:
@@ -155,92 +149,59 @@ def desligar_linha_e_verificar_ilhamento_task(net_base, linha, dados_cenario):
         slack_present_in_component = any(bus in component_set for bus in slack_buses)
         if not slack_present_in_component:
             ilhamento_detectado = True
-            status_contingencia = 'ilhamento'
             break
 
-    # Reverte o status da linha na cópia para que a task subsequente receba uma rede consistente
-    # net.line.at[linha, 'in_service'] = original_line_status # Isso não é necessário se criamos uma cópia limpa a cada iteração
-
-    return net, ilhamento_detectado, status_contingencia, {
-        'from_bus': net_base.line.at[linha, 'from_bus'],
-        'to_bus': net_base.line.at[linha, 'to_bus']
-    }
+    return net_contingencia_copy, ilhamento_detectado
 
 @task
-def verificar_criticidade_task(net, vmax, vmin, line_loading_max):
+def salvar_resultados_globais(resultados, output_path='resultados_simulacao_ieee30_detalhado.csv'):
     """
-    TASK: Verifica criticidade de tensão e carregamento da rede após um fluxo de potência.
-    Retorna o status da criticidade.
-    """
-    status_contingencia = 'normal'
-    try:
-        vm_min = float(net.res_bus.vm_pu.min())
-        vm_max = float(net.res_bus.vm_pu.max())
-        loading_max = float(net.res_line.loading_percent.max())
-
-        if vm_min < vmin:
-            status_contingencia = 'crítica'
-        elif vm_max > vmax:
-            status_contingencia = 'crítica'
-        elif loading_max > line_loading_max:
-            status_contingencia = 'crítica'
-    except Exception: # Caso os resultados não existam (ex: fluxo não convergiu)
-        status_contingencia = 'crítica (dados ausentes)'
-        
-    return status_contingencia
-
-@task
-def processar_cenario_nao_critico_task(cenario_id, linha_desligada, line_info, tensao_antes, tensao_depois):
-    """
-    TASK: Formata os dados de tensão para um cenário não crítico em um dicionário.
-    Retorna o dicionário com os dados formatados.
-    """
-    row_data = {
-        'cenario': cenario_id,
-        'linha_desligada': linha_desligada,
-        'from_bus': line_info['from_bus'],
-        'to_bus': line_info['to_bus']
-    }
-    for bus_idx, vm_pu in tensao_antes.items():
-        row_data[f'vm_pu_antes_bus_{bus_idx}'] = vm_pu
-    for bus_idx, vm_pu in tensao_depois.items():
-        row_data[f'vm_pu_depois_bus_{bus_idx}'] = vm_pu
-    return row_data
-
-@task
-def salvar_resultados_globais_task(resultados, output_path='resultados_simulacao_ieee30_detalhado.csv'):
-    """
-    TASK: Salva os resultados globais de todas as contingências em um CSV.
+    Salva os resultados globais de todas as contingências em um CSV.
     """
     df_resultados_finais = pd.DataFrame(resultados)
     df_resultados_finais.to_csv(output_path, index=False)
     print(f"\nResultados detalhados (todas as contingências) salvos em '{output_path}'.")
+    run_context = get_run_context()
+    if run_context:
+        create_markdown_artifact(
+            f"Resultados da simulação salvos em: `{output_path}`",
+            key="resultados-simulacao",
+            description="Sumário dos resultados de todas as contingências."
+        )
+
 
 @task
-def salvar_tensao_nao_criticos_task(tensao_data, output_path='tensao_barras_nao_criticos_ieee30.csv'):
+def salvar_tensao_nao_criticos(tensao_data, output_path='tensao_barras_nao_criticos_ieee30.csv'):
     """
-    TASK: Salva os dados de tensão para contingências NÃO CRÍTICAS em um CSV.
+    Salva os dados de tensão para contingências NÃO CRÍTICAS em um CSV.
     """
     if tensao_data:
         df_tensao_nao_criticos = pd.DataFrame(tensao_data)
-        # Reordenar colunas para melhor visualização (opcional)
+        # Reordena as colunas para melhor visualização
         cols = ['cenario', 'linha_desligada', 'from_bus', 'to_bus'] + \
                sorted([col for col in df_tensao_nao_criticos.columns if col.startswith('vm_pu_antes_bus_')]) + \
                sorted([col for col in df_tensao_nao_criticos.columns if col.startswith('vm_pu_depois_bus_')])
         df_tensao_nao_criticos = df_tensao_nao_criticos[cols]
         df_tensao_nao_criticos.to_csv(output_path, index=False)
         print(f"Dados de tensão para contingências NÃO CRÍTICAS salvos em '{output_path}'.")
-        return df_tensao_nao_criticos
+        run_context = get_run_context()
+        if run_context:
+            create_markdown_artifact(
+                f"Dados de tensão para cenários não críticos salvos em: `{output_path}`",
+                key="tensao-nao-criticos",
+                description="Tensões antes e depois para contingências sem criticidade."
+            )
+        return df_tensao_nao_criticos # Retorna o DataFrame para ser usado no próximo flow
     else:
         print("Nenhuma contingência não crítica foi encontrada para salvar dados de tensão.")
         return pd.DataFrame() # Retorna um DataFrame vazio
 
 
 @task
-def analisar_impacto_tensao_final_task(input_df_tensao, output_csv='impacto_tensao_barras_completo_ieee30.csv', num_barras=30):
+def analisar_impacto_tensao_formato_novo(input_df_tensao, output_csv='impacto_tensao_barras_completo_ieee30.csv', num_barras=30):
     """
-    TASK: Analisa o impacto do desligamento de linhas nas tensões das barras
-    e gera um CSV onde cada barra tem sua própria coluna com o valor do impacto.
+    Analisa o impacto do desligamento de linhas nas tensões das barras
+    e gera um CSV onde cada barra tem sua própria coluna com o valor da diferença de tensão (impacto).
     """
     if input_df_tensao.empty:
         print("DataFrame de entrada para análise de impacto está vazio. Nenhuma análise será realizada.")
@@ -252,7 +213,7 @@ def analisar_impacto_tensao_final_task(input_df_tensao, output_csv='impacto_tens
     for index, row in input_df_tensao.iterrows():
         cenario_id = row['cenario']
         linha_desligada = row['linha_desligada']
-        
+
         linha_resultado = {
             'cenario': cenario_id,
             'linha_desligada': linha_desligada
@@ -269,77 +230,78 @@ def analisar_impacto_tensao_final_task(input_df_tensao, output_csv='impacto_tens
                 diferenca = np.nan
             else:
                 diferenca = abs(tensao_depois - tensao_antes)
-            
+
             linha_resultado[f'barra_{i}'] = diferenca
-        
+
         resultados_impacto_novo_formato.append(linha_resultado)
 
     df_impacto_novo_formato = pd.DataFrame(resultados_impacto_novo_formato)
-    
+
     if not df_impacto_novo_formato.empty:
         cols_ordered = ['cenario', 'linha_desligada'] + colunas_barras
         df_impacto_novo_formato = df_impacto_novo_formato[cols_ordered]
 
         df_impacto_novo_formato.to_csv(output_csv, index=False)
         print(f"\nAnálise de impacto concluída. Dados de impacto por barra salvos em '{output_csv}'.")
-        
-        # Opcional: Criar um artefato de markdown no Prefect UI
-        run_name = get_run_context().flow_run.name
-        markdown_report = f"""
+
+        run_context = get_run_context()
+        if run_context:
+            run_name = run_context.flow_run.name
+            markdown_report = f"""
 ### Relatório de Impacto de Tensão
 **Flow Run**: `{run_name}`
 
 Arquivo de impacto salvo em: `{output_csv}`
 Número de registros de impacto: {len(df_impacto_novo_formato)}
 """
-        create_markdown_artifact(markdown_report, key="impacto-tensao-relatorio", description="Relatório do impacto de tensão nas barras.")
+            create_markdown_artifact(markdown_report, key="impacto-tensao-relatorio", description="Relatório do impacto de tensão nas barras.")
     else:
         print("\nNão foram encontrados dados de impacto de tensão para salvar no novo formato.")
 
 
-# --- Flow (Fluxo Principal) ---
-
+# --- FLOW 1: Simulação de Contingências ---
 @flow(name="Simulacao de Contingencia N-1 IEEE 30 Barras", log_prints=True)
 def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: float = 0.94, line_loading_max: float = 120):
     """
-    FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras.
+    FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras,
+    salvando os resultados e os dados de tensão para posterior análise de impacto.
     """
     print(f"Iniciando simulação com {n_cenarios} cenários para IEEE 30 barras...")
 
-    # 1. Cria a rede base
-    net_base = criar_rede_ieee30_slack_bar_task.submit() # `.submit()` faz a task rodar assincronamente e retorna um Future
+    # 1. Carrega a rede base
+    net_base = criar_rede_ieee30_slack_bar()
 
-    # 2. Roda o fluxo de potência inicial da rede base (para logs)
-    tensao_base_dict, _ = rodar_fluxo_potencia_task.submit(net_base).wait() # `.wait()` espera o resultado do Future
+    # 2. Roda o fluxo de potência inicial da rede base
+    net_base_result, convergencia_base = rodar_fluxo_potencia(net_base)
 
-    # Opcional: Log inicial da rede base
-    if tensao_base_dict:
+    if convergencia_base:
         print("Rede base carregada:")
-        print(f" - Tensão mínima: {min(tensao_base_dict.values()):.4f} pu")
-        print(f" - Tensão máxima: {max(tensao_base_dict.values()):.4f} pu")
-        # Não temos o loading da rede base diretamente aqui, precisaria de outra task.
-        # print(f" - Carregamento máximo de linha: {net_base.res_line.loading_percent.max():.2f} %")
-    print("------")
+        print(f" - Tensão mínima: {net_base_result.res_bus.vm_pu.min():.4f} pu")
+        print(f" - Tensão máxima: {net_base_result.res_bus.vm_pu.max():.4f} pu")
+        if not net_base_result.res_line.empty:
+            print(f" - Carregamento máximo de linha: {net_base_result.res_line.loading_percent.max():.2f} %")
+        print("------")
+    else:
+        print("A rede base não convergiu. A simulação não pode continuar.")
+        return # Encerra o flow se a base não convergir
 
     resultados_globais = []
     tensao_cenarios_nao_criticos_para_csv = []
 
-    linhas_para_testar = list(net_base.result().line.index) # Pega o objeto net do Future para acessar as linhas
+    linhas_para_testar = list(net_base_result.line.index)
 
-    # Loop principal para simular cada cenário
     for cenario_id in range(n_cenarios):
         print(f"\nSimulando Cenário {cenario_id}...")
-        
-        # Gera e aplica dados de cenário
-        dados_cenario = gerar_dados_cenario_task.submit(net_base.result(), cenario_id)
-        net_cenario_inicial = aplicar_dados_ao_net_task.submit(net_base.result(), dados_cenario)
-        
-        # Roda o fluxo de potência para o cenário base ANTES de qualquer contingência
-        tensao_antes_contingencia, convergiu_antes = rodar_fluxo_potencia_task.submit(net_cenario_inicial).wait()
+        dados_cenario = gerar_dados_cenario(net_base_result, cenario_id)
 
-        if not convergiu_antes:
+        # 3. Aplica dados de cenário a uma cópia da rede base
+        net_cenario_inicial = aplicar_dados_ao_net(net_base_result, dados_cenario)
+
+        # 4. Roda o fluxo de potência para o cenário ANTES de qualquer contingência
+        net_cenario_result, convergencia_inicial = rodar_fluxo_potencia(net_cenario_inicial)
+
+        if not convergencia_inicial:
             print(f"Cenário {cenario_id}: Fluxo de potência inicial NÃO convergiu, ignorando contingências para este cenário.")
-            # Se o cenário inicial não convergir, registramos isso e pulamos as contingências para ele.
             resultados_globais.append({
                 'cenario': cenario_id,
                 'linha_desligada': 'N/A',
@@ -348,76 +310,122 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
                 'num_componentes_conectados': None,
                 'convergencia': False
             })
-            continue # Pula para o próximo cenario_id
-        
+            continue
+
+        tensao_antes_contingencia = net_cenario_result.res_bus.vm_pu.to_dict()
+
         linhas_criticas_cenario_resumo = []
 
-        # Loop para testar o desligamento de cada linha como contingência N-1
         for linha in linhas_para_testar:
-            # Desliga a linha e verifica ilhamento
-            net_contingencia_future, ilhamento_detectado, status_contingencia_ilhamento, line_info = \
-                desligar_linha_e_verificar_ilhamento_task.submit(net_base, linha, dados_cenario).wait()
+            # 5. Simula desligamento e verifica ilhamento
+            net_pos_desligamento, ilhamento_detectado = simular_desligamento_e_verificar_ilhamento(net_cenario_result, linha)
 
-            tensao_apos_contingencia = {bus: float('nan') for bus in net_contingencia_future.bus.index}
+            tensao_apos_contingencia = {bus: np.nan for bus in net_pos_desligamento.bus.index}
             convergencia_pos_contingencia = False
+            status_contingencia = 'normal' # Default para 'normal'
 
             if ilhamento_detectado:
                 print(f"Cenário {cenario_id}, linha {linha}: ⚠️ Ilhamento detectado")
                 linhas_criticas_cenario_resumo.append(linha)
-                status_final = status_contingencia_ilhamento
+                status_contingencia = 'ilhamento'
             else:
-                # Roda o fluxo de potência pós-contingência
-                tensao_apos_contingencia, convergiu_pos_contingencia = rodar_fluxo_potencia_task.submit(net_contingencia_future).wait()
-                
-                if convergiu_pos_contingencia:
-                    # Verifica criticidade (tensão/carregamento)
-                    status_criticidade = verificar_criticidade_task.submit(net_contingencia_future, vmax, vmin, line_loading_max).wait()
-                    status_final = status_criticidade
+                # 6. Roda o fluxo de potência pós-contingência
+                net_final_contingencia, convergencia_pos = rodar_fluxo_potencia(net_pos_desligamento)
+                convergencia_pos_contingencia = convergencia_pos
 
-                    if status_final == 'normal':
-                        # Processa e coleta dados para cenários não críticos
-                        processed_data = processar_cenario_nao_critico_task.submit(
-                            cenario_id, linha, line_info, tensao_antes_contingencia, tensao_apos_contingencia
-                        ).wait()
-                        tensao_cenarios_nao_criticos_para_csv.append(processed_data)
+                if convergencia_pos_contingencia:
+                    # 7. Verifica criticidade (tensão e carregamento)
+                    vm_min = float(net_final_contingencia.res_bus.vm_pu.min())
+                    vm_max = float(net_final_contingencia.res_bus.vm_pu.max())
+                    loading_max = float(net_final_contingencia.res_line.loading_percent.max())
+
+                    if vm_min < vmin:
+                        print(f"Cenário {cenario_id}, linha {linha}: ⚠️ Tensão mínima ({vm_min:.4f} pu) abaixo do limite ({vmin:.4f} pu)")
+                        status_contingencia = 'crítica'
+                    elif vm_max > vmax:
+                        print(f"Cenário {cenario_id}, linha {linha}: ⚠️ Tensão máxima ({vm_max:.4f} pu) acima do limite ({vmax:.4f} pu)")
+                        status_contingencia = 'crítica'
+                    elif loading_max > line_loading_max:
+                        print(f"Cenário {cenario_id}, linha {linha}: ⚠️ Carregamento de linha ({loading_max:.2f} %) excedido ({line_loading_max:.2f} %)")
+                        status_contingencia = 'crítica'
+                    
+                    # Se não for crítica, coleta os dados de tensão para análise de impacto
+                    if status_contingencia == 'normal':
+                        tensao_apos_contingencia = net_final_contingencia.res_bus.vm_pu.to_dict()
+                        row_data = {
+                            'cenario': cenario_id,
+                            'linha_desligada': linha,
+                            'from_bus': net_base_result.line.at[linha, 'from_bus'],
+                            'to_bus': net_base_result.line.at[linha, 'to_bus']
+                        }
+                        for bus_idx, vm_pu in tensao_antes_contingencia.items():
+                            row_data[f'vm_pu_antes_bus_{bus_idx}'] = vm_pu
+                        for bus_idx, vm_pu in tensao_apos_contingencia.items():
+                            row_data[f'vm_pu_depois_bus_{bus_idx}'] = vm_pu
+                        tensao_cenarios_nao_criticos_para_csv.append(row_data)
                     else:
-                        print(f"Cenário {cenario_id}, linha {linha}: {status_final}")
-                        linhas_criticas_cenario_resumo.append(linha)
-                else:
-                    status_final = 'crítica (não convergiu)'
+                        linhas_criticas_cenario_resumo.append(linha) # Adiciona a linha à lista de críticas se a contingência for crítica
+
+                else: # Não convergiu
+                    status_contingencia = 'crítica (não convergiu)'
                     print(f"Cenário {cenario_id}, linha {linha}: ❌ Fluxo não convergiu")
                     linhas_criticas_cenario_resumo.append(linha)
-            
+
             resultados_globais.append({
                 'cenario': cenario_id,
                 'linha_desligada': linha,
-                'status': status_final,
+                'status': status_contingencia,
                 'ilhamento': ilhamento_detectado,
-                'num_componentes_conectados': len(list(nx.connected_components(create_nxgraph(net_contingencia_future, respect_switches=True)))) if not ilhamento_detectado else None,
-                'convergencia': convergiu_pos_contingencia # Representa se o fluxo pós-contingência convergiu
+                'num_componentes_conectados': len(list(nx.connected_components(create_nxgraph(net_pos_desligamento, respect_switches=True)))) if not ilhamento_detectado else None,
+                'convergencia': convergencia_pos_contingencia
             })
-        
+
         if linhas_criticas_cenario_resumo:
             print(f"\n--- Resumo Cenário {cenario_id}: Linhas que causaram Criticidade/Ilhamento: {linhas_criticas_cenario_resumo} ---")
         else:
             print(f"\n--- Resumo Cenário {cenario_id}: Nenhuma criticidade ou ilhamento detectado. ---")
 
-    # Salva os resultados globais (todas as contingências)
-    salvar_resultados_globais_task.submit(resultados_globais)
+    # 8. Salva os resultados globais (todas as contingências)
+    salvar_resultados_globais(resultados_globais).wait()
 
-    # Salva e retorna o DataFrame de tensões não críticas para a análise final
-    df_tensao_nao_criticos = salvar_tensao_nao_criticos_task.submit(tensao_cenarios_nao_criticos_para_csv).wait()
+    # 9. Salva os dados de tensão para contingências NÃO CRÍTICAS
+    salvar_tensao_nao_criticos(tensao_cenarios_nao_criticos_para_csv).wait() # Aguarda a conclusão
 
-    # Analisa e salva o impacto final de tensão por barra
-    analisar_impacto_tensao_final_task.submit(df_tensao_nao_criticos)
 
-# --- Como Executar ---
-# Para rodar este fluxo, salve o código como um arquivo Python (ex: `simulacao_prefect.py`)
-# e execute no seu terminal:
-# prefect deploy ./simulacao_prefect.py simulacao_contingencia_flow -n "Simulacao de Contingencia de Rede"
-# Isso criará um deployment. Depois, você pode rodar:
-# prefect run deployment "Simulacao de Contingencia de Rede/simulacao-contingencia-n-1-ieee-30-barras"
+# --- FLOW 2: Análise de Impacto (Separado)
+@flow(name="Analise de Impacto de Tensao IEEE 30 Barras", log_prints=True)
+def analise_impacto_flow(input_csv_path: str = 'tensao_barras_nao_criticos_ieee30.csv', num_barras: int = 30):
+    """
+    FLOW: Carrega os dados de tensão de cenários não críticos de um CSV e
+    realiza a análise de impacto, salvando os resultados em um novo CSV.
+    """
+    print(f"Iniciando análise de impacto de tensão a partir de '{input_csv_path}'...")
 
-# Ou, para um teste local simples:
+    try:
+        df_tensao = pd.read_csv(input_csv_path)
+        print(f"Dados carregados com sucesso de '{input_csv_path}'.")
+    except FileNotFoundError:
+        print(f"Erro: Arquivo '{input_csv_path}' não encontrado. Certifique-se de que o 'simulacao_contingencia_flow' foi executado primeiro.")
+        return
+    except Exception as e:
+        print(f"Erro ao carregar o arquivo CSV: {e}")
+        return
+
+    # Chama a task para realizar a análise de impacto
+    analisar_impacto_tensao_formato_novo(df_tensao, num_barras=num_barras).wait()
+
+    print("Análise de impacto de tensão concluída.")
+
+# --- Execução Principal do Script ---
 if __name__ == "__main__":
-    simulacao_contingencia_flow(n_cenarios=2) # Execute com 2 cenários para teste
+    n_cenarios_simulacao = 2 # Definir o número de cenários para a simulação
+
+    print(f"--- Executando o Flow de Simulação de Contingências ---")
+    # Para rodar o flow de simulação (que gera os CSVs de saída)
+    simulacao_contingencia_flow(n_cenarios=n_cenarios_simulacao)
+
+    print(f"\n--- Executando o Flow de Análise de Impacto ---")
+    # Para rodar o flow de análise de impacto, usando os dados gerados pelo flow anterior
+    analise_impacto_flow(input_csv_path='tensao_barras_nao_criticos_ieee30.csv', num_barras=30)
+
+    print("\nProcesso completo (simulação e análise) concluído.")

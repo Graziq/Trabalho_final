@@ -2,7 +2,7 @@
 build:
 - prefect.projects.steps.git_clone:
     repository: https://github.com/Graziq/Trabalho_final.git
-    branch: main # Mantenha a branch correta aqui, se não for 'main'
+    branch: main
 
 deployments:
 - name: simulacao-contingencia-ieee30
@@ -12,24 +12,34 @@ deployments:
   parameters:
     n_cenarios: 3
   tags:
-    - simulacao
-    - ieee30
-    - contingencia
+  - simulacao
+  - ieee30
+  - contingencia
   work_pool:
-    name: default-agent-pool # Nome do seu Work Pool
-    type: docker # Tipo do seu Work Pool
-
+    name: default-agent-pool
+    type: docker
+    work_queue_name:
+    job_variables: {}
+  schedules:
+  - interval: 60.0
+    anchor_date: '2025-06-11T12:42:27.280386+00:00'
+    timezone: UTC
+    active: true
+  pull:
+  - prefect.deployments.steps.git_clone:
+      repository: https://github.com/Graziq/Trabalho_final.git
+      branch: main
 - name: analise-impacto-ieee30
   version: 1
   description: Flow para analisar o impacto de tensão pós-contingência N-1.
   entrypoint: src/flows/resultados2.py:analise_impacto_flow
   parameters:
-    input_csv_path: "tensao_barras_nao_criticos_ieee30.csv"
+    input_csv_path: tensao_barras_nao_criticos_ieee30.csv
     num_barras: 30
   tags:
-    - analise
-    - impacto
-    - ieee30
+  - analise
+  - impacto
+  - ieee30
   work_pool:
-    name: default-agent-pool # Use o mesmo Work Pool para ambos os deployments
-    type: docker # Tipo do seu Work Pool
+    name: default-agent-pool
+    type: docker

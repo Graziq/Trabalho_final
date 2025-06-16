@@ -1,3 +1,16 @@
+"""
+ANÁLISE DE CONTINGÊNCIAS EM SISTEMAS DE POTÊNCIA - IEEE 30 BARRAS
+
+Este script realiza:
+1. Criação da rede IEEE 30 barras com configuração adequada da barra slack
+2. Geração de múltiplos cenários com variações randômicas nas cargas e geradores
+3. Simulação de contingências N-1 (desligamento de linhas)
+4. Identificação de condições críticas (tensão fora dos limites, sobrecarga, ilhamento)
+5. Análise do impacto nas tensões das barras para contingências não críticas
+6. Geração de relatórios em CSV para análise posterior
+"""
+
+
 import pandapower as pp # Importa a biblioteca pandapower para modelagem e análise de sistemas de potência
 import pandapower.networks as pn # Importa redes padrão do pandapower, como o IEEE 30 barras
 import random # Importa para gerar números aleatórios para as variações de cenário
