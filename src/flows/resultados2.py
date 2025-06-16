@@ -12,6 +12,14 @@ from prefect.context import get_run_context
 import io
 import sys
 
+# --- 1. Defina um diretório base para todos os arquivos de saída ---
+# Este é o caminho ABSOLUTO no seu sistema onde você quer que os arquivos sejam salvos.
+# Substitua pelo caminho real no seu computador.
+# Ex: r"C:\Users\graz1\Documents\MeusProjetos\Trabalho_Final_Resultados"
+BASE_OUTPUT_DIR = r"C:\Users\graz1\UFF\mestrado\Trabalho_final\simulacao_resultados"
+
+# Crie o diretório se ele não existir
+os.makedirs(BASE_OUTPUT_DIR, exist_ok=True)
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
@@ -166,10 +174,11 @@ def simular_desligamento_e_verificar_ilhamento(net_copy, linha):
     return net_contingencia_copy, ilhamento_detectado
 
 @task
-def salvar_resultados_globais(resultados, output_path='resultados_simulacao_ieee30_detalhado.csv'):
+def salvar_resultados_globais(resultados, output_filename='resultados_simulacao_ieee30_detalhado.csv'):
     """
     Salva os resultados globais de todas as contingências em um CSV.
     """
+    output_path = os.path.join(BASE_OUTPUT_DIR, output_filename) # Usa o BASE_OUTPUT_DIR
     df_resultados_finais = pd.DataFrame(resultados)
     df_resultados_finais.to_csv(output_path, index=False)
     print(f"\nResultados detalhados (todas as contingências) salvos em '{output_path}'.")
@@ -183,10 +192,11 @@ def salvar_resultados_globais(resultados, output_path='resultados_simulacao_ieee
 
 
 @task
-def salvar_tensao_nao_criticos(tensao_data, output_path='tensao_barras_nao_criticos_ieee30.csv'):
+def salvar_tensao_nao_criticos(tensao_data, output_filename='tensao_barras_nao_criticos_ieee30.csv'):
     """
     Salva os dados de tensão para contingências NÃO CRÍTICAS em um CSV.
     """
+    output_path = os.path.join(BASE_OUTPUT_DIR, output_filename) # Usa o BASE_OUTPUT_DIR
     if tensao_data:
         df_tensao_nao_criticos = pd.DataFrame(tensao_data)
         # Reordena as colunas para melhor visualização
@@ -203,18 +213,20 @@ def salvar_tensao_nao_criticos(tensao_data, output_path='tensao_barras_nao_criti
                 key="tensao-nao-criticos",
                 description="Tensões antes e depois para contingências sem criticidade."
             )
-        return df_tensao_nao_criticos # Retorna o DataFrame para ser usado no próximo flow
+        return df_tensao_nao_criticos # Retorna o DataFrame para ser usado no próximo flow (se aplicável, mas não diretamente neste caso)
     else:
         print("Nenhuma contingência não crítica foi encontrada para salvar dados de tensão.")
         return pd.DataFrame() # Retorna um DataFrame vazio
 
 
 @task
-def analisar_impacto_tensao_formato_novo(input_df_tensao, output_csv='impacto_tensao_barras_completo_ieee30.csv', num_barras=30):
+def analisar_impacto_tensao_formato_novo(input_df_tensao, output_filename='impacto_tensao_barras_completo_ieee30.csv', num_barras=30):
     """
     Analisa o impacto do desligamento de linhas nas tensões das barras
     e gera um CSV onde cada barra tem sua própria coluna com o valor da diferença de tensão (impacto).
     """
+    output_csv_path = os.path.join(BASE_OUTPUT_DIR, output_filename) # Usa o BASE_OUTPUT_DIR
+
     if input_df_tensao.empty:
         print("DataFrame de entrada para análise de impacto está vazio. Nenhuma análise será realizada.")
         return
@@ -253,8 +265,8 @@ def analisar_impacto_tensao_formato_novo(input_df_tensao, output_csv='impacto_te
         cols_ordered = ['cenario', 'linha_desligada'] + colunas_barras
         df_impacto_novo_formato = df_impacto_novo_formato[cols_ordered]
 
-        df_impacto_novo_formato.to_csv(output_csv, index=False)
-        print(f"\nAnálise de impacto concluída. Dados de impacto por barra salvos em '{output_csv}'.")
+        df_impacto_novo_formato.to_csv(output_csv_path, index=False) # Usa o novo caminho
+        print(f"\nAnálise de impacto concluída. Dados de impacto por barra salvos em '{output_csv_path}'.")
 
         run_context = get_run_context()
         if run_context:
@@ -263,13 +275,12 @@ def analisar_impacto_tensao_formato_novo(input_df_tensao, output_csv='impacto_te
 ### Relatório de Impacto de Tensão
 **Flow Run**: `{run_name}`
 
-Arquivo de impacto salvo em: `{output_csv}`
+Arquivo de impacto salvo em: `{output_csv_path}`
 Número de registros de impacto: {len(df_impacto_novo_formato)}
 """
             create_markdown_artifact(markdown_report, key="impacto-tensao-relatorio", description="Relatório do impacto de tensão nas barras.")
     else:
         print("\nNão foram encontrados dados de impacto de tensão para salvar no novo formato.")
-
 
 # --- FLOW 1: Simulação de Contingências ---
 @flow(name="Simulacao de Contingencia N-1 IEEE 30 Barras", log_prints=True)
@@ -398,26 +409,28 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
             print(f"\n--- Resumo Cenário {cenario_id}: Nenhuma criticidade ou ilhamento detectado. ---")
 
     # 8. Salva os resultados globais (todas as contingências)
-    salvar_resultados_globais(resultados_globais)
+    salvar_resultados_globais(resultados_globais, output_filename='resultados_simulacao_ieee30_detalhado.csv')
 
     # 9. Salva os dados de tensão para contingências NÃO CRÍTICAS
-    salvar_tensao_nao_criticos(tensao_cenarios_nao_criticos_para_csv) # Aguarda a conclusão
+    salvar_tensao_nao_criticos(tensao_cenarios_nao_criticos_para_csv, output_filename='tensao_barras_nao_criticos_ieee30.csv')
 
 
 # --- FLOW 2: Análise de Impacto (Separado)
 @flow(name="Analise de Impacto de Tensao IEEE 30 Barras", log_prints=True)
-def analise_impacto_flow(input_csv_path: str = 'tensao_barras_nao_criticos_ieee30.csv', num_barras: int = 30):
+def analise_impacto_flow(input_csv_filename: str = 'tensao_barras_nao_criticos_ieee30.csv', num_barras: int = 30):
     """
     FLOW: Carrega os dados de tensão de cenários não críticos de um CSV e
     realiza a análise de impacto, salvando os resultados em um novo CSV.
     """
+    input_csv_path = os.path.join(BASE_OUTPUT_DIR, input_csv_filename) # Usa o BASE_OUTPUT_DIR para ler
+
     print(f"Iniciando análise de impacto de tensão a partir de '{input_csv_path}'...")
 
     try:
         df_tensao = pd.read_csv(input_csv_path)
         print(f"Dados carregados com sucesso de '{input_csv_path}'.")
     except FileNotFoundError:
-        print(f"Erro: Arquivo '{input_csv_path}' não encontrado. Certifique-se de que o 'simulacao_contingencia_flow' foi executado primeiro.")
+        print(f"Erro: Arquivo '{input_csv_path}' não encontrado. Certifique-se de que o 'simulacao_contingencia_flow' foi executado primeiro e que o caminho está correto.")
         return
     except Exception as e:
         print(f"Erro ao carregar o arquivo CSV: {e}")
@@ -438,6 +451,6 @@ if __name__ == "__main__":
 
     print(f"\n--- Executando o Flow de Análise de Impacto ---")
     # Para rodar o flow de análise de impacto, usando os dados gerados pelo flow anterior
-    analise_impacto_flow(input_csv_path='tensao_barras_nao_criticos_ieee30.csv', num_barras=30)
+    analise_impacto_flow(input_csv_filename='tensao_barras_nao_criticos_ieee30.csv', num_barras=30)
 
     print("\nProcesso completo (simulação e análise) concluído.")
