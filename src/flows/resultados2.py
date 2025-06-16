@@ -11,7 +11,7 @@ from prefect.artifacts import create_markdown_artifact
 from prefect.context import get_run_context
 import io
 import sys
-import copy
+
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
@@ -104,7 +104,7 @@ def aplicar_dados_ao_net(net, dados):
     # É importante copiar a rede ANTES de aplicar os dados se você quiser manter a rede original intacta
     # para múltiplos cenários ou operações futuras.
     
-    net_copy = pp.copy(net)
+    net_copy = pp.from_json_string(pp.to_json(net))
 
     
     for idx in net_copy.load.index:

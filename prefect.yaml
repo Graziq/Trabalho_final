@@ -1,45 +1,35 @@
-# prefect.yaml
-build:
-- prefect.projects.steps.git_clone:
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+# Generic metadata about this project
+name: Trabalho_final
+prefect-version: 2.16.4
+
+# build section allows you to manage and build docker images
+build: null
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push: null
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.git_clone:
     repository: https://github.com/Graziq/Trabalho_final.git
     branch: main
 
+# the deployments section allows you to provide configuration for deploying flows
 deployments:
 - name: simulacao-contingencia-ieee30
-  version: 1
-  description: Flow para simular contingências N-1 em rede IEEE 30 barras.
+  version: null
+  tags: []
+  description: "FLOW: Orquestra a simula\xE7\xE3o de conting\xEAncias N-1 na rede\
+    \ IEEE 30 barras,\nsalvando os resultados e os dados de tens\xE3o para posterior\
+    \ an\xE1lise de impacto."
   entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
-  parameters:
-    n_cenarios: 3
-  tags:
-  - simulacao
-  - ieee30
-  - contingencia
+  parameters: {}
   work_pool:
     name: default-agent-pool
-    type: docker
-    work_queue_name:
+    work_queue_name: null
     job_variables: {}
-  schedules:
-  - interval: 60.0
-    anchor_date: '2025-06-11T12:42:27.280386+00:00'
-    timezone: UTC
-    active: true
-  pull:
-  - prefect.deployments.steps.git_clone:
-      repository: https://github.com/Graziq/Trabalho_final.git
-      branch: main
-- name: analise-impacto-ieee30
-  version: 1
-  description: Flow para analisar o impacto de tensão pós-contingência N-1.
-  entrypoint: src/flows/resultados2.py:analise_impacto_flow
-  parameters:
-    input_csv_path: tensao_barras_nao_criticos_ieee30.csv
-    num_barras: 30
-  tags:
-  - analise
-  - impacto
-  - ieee30
-  work_pool:
-    name: default-agent-pool
-    type: docker
+  schedules: []
