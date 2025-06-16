@@ -9,7 +9,12 @@ import numpy as np
 from prefect import flow, task
 from prefect.artifacts import create_markdown_artifact
 from prefect.context import get_run_context
+import io
+import sys
+import copy
 
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # --- Adicione esta linha AQUI ---
 print(f"DEBUG: pandapower version in worker: {pp.__version__}")
@@ -98,7 +103,9 @@ def aplicar_dados_ao_net(net, dados):
     """
     # É importante copiar a rede ANTES de aplicar os dados se você quiser manter a rede original intacta
     # para múltiplos cenários ou operações futuras.
-    net_copy = pp.copy_net(net) 
+    
+    net_copy = pp.copy(net)
+
     
     for idx in net_copy.load.index:
         net_copy.load.at[idx, 'p_mw'] = dados[f'carga_p_mw_{idx}']
