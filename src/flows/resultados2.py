@@ -153,7 +153,7 @@ def simular_desligamento_e_verificar_ilhamento(net_copy, linha):
 
     ilhamento_detectado = False
     graph = create_nxgraph(net_contingencia_copy, respect_switches=True)
-    slack_buses = net_contingencia_copy.gen[net_contingencia_copy['slack']].bus.values
+    slack_buses = net_contingencia_copy.gen[net_contingencia_copy.gen['slack']].bus.values
     componentes = list(nx.connected_components(graph))
 
     for component in componentes:
