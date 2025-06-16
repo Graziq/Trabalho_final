@@ -398,10 +398,10 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
             print(f"\n--- Resumo Cenário {cenario_id}: Nenhuma criticidade ou ilhamento detectado. ---")
 
     # 8. Salva os resultados globais (todas as contingências)
-    salvar_resultados_globais(resultados_globais).wait()
+    salvar_resultados_globais(resultados_globais)
 
     # 9. Salva os dados de tensão para contingências NÃO CRÍTICAS
-    salvar_tensao_nao_criticos(tensao_cenarios_nao_criticos_para_csv).wait() # Aguarda a conclusão
+    salvar_tensao_nao_criticos(tensao_cenarios_nao_criticos_para_csv) # Aguarda a conclusão
 
 
 # --- FLOW 2: Análise de Impacto (Separado)
@@ -424,7 +424,7 @@ def analise_impacto_flow(input_csv_path: str = 'tensao_barras_nao_criticos_ieee3
         return
 
     # Chama a task para realizar a análise de impacto
-    analisar_impacto_tensao_formato_novo(df_tensao, num_barras=num_barras).wait()
+    analisar_impacto_tensao_formato_novo(df_tensao, num_barras=num_barras)
 
     print("Análise de impacto de tensão concluída.")
 
