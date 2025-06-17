@@ -1,10 +1,10 @@
 FROM prefecthq/prefect:2.16.4-python3.12
 
-# Instalar pandapower
-RUN pip install pandapower
+# Instalar dependências
+RUN pip install pandapower pandas
 
-# Definir diretório de trabalho dentro do container
+# Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar os arquivos do projeto (opcional, pois no docker-compose você já mapeia volumes)
+# Copiar todos os arquivos necessários
 COPY . /app

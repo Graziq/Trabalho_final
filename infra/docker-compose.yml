@@ -17,10 +17,9 @@ services:
     command: prefect server start --host 0.0.0.0 --port 4200
     environment:
       - PREFECT_HOME=/root/.prefect
-      # Prefect API URL aponta para o próprio servidor, usando o nome do serviço na rede Docker
       - PREFECT_API_URL=http://prefect-server:4200/api
     ports:
-      - "4200:4200" # Expor a porta para acessar a UI do seu host
+      - "4200:4200"
     volumes:
       - prefect_data:/root/.prefect
     depends_on:
@@ -28,21 +27,17 @@ services:
     networks:
       - prefect-net
 
-  # NOVO SERVIÇO: Prefect Agent (Worker)
   prefect-agent:
-    prefect-agent:
     build: .
-    command: prefect agent start --pool default-agent-pool # O pool que você definiu no prefect.yaml
+    command: prefect agent start --pool default-agent-pool
     environment:
       - PREFECT_HOME=/root/.prefect
-      # O agente precisa saber onde encontrar o Prefect Server
       - PREFECT_API_URL=http://prefect-server:4200/api
     volumes:
-      # O agente precisará acessar seu código!
-      # Monte o diretório do seu projeto local dentro do contêiner do agente
-      - ./Trabalho_final:/app/Trabalho_final # <--- IMPORTANTE: Ajuste o caminho "./Trabalho_final" se seu projeto estiver em outra pasta
+      - ../:/app/Trabalho_final
+      - ./data:/app/data
     depends_on:
-      - prefect-server # O agente depende do servidor estar rodando
+      - prefect-server
     networks:
       - prefect-net
 
