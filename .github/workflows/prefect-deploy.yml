@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest # Linux é geralmente mais estável para GitHub Actions
+    runs-on: windows-latest # Alterado para Windows
 
     steps:
       - name: 🔁 Checkout do código
@@ -21,70 +21,22 @@ jobs:
       - name: 📦 Instalar dependências
         run: |
           python -m pip install -U pip
-          pip install -r requirements.txt
-          # Assegure que prefect esteja instalado para o `prefect deploy`
-          pip install "prefect==2.16.4"
+          python -m pip install -r requirements.txt
+          python -m pip install "prefect==2.16.4" pandapower networkx pandas numpy
+          # Configura PYTHONPATH para Windows (PowerShell)
+          $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
+        
+        shell: powershell
 
       - name: 🔗 Configurar conexão com Prefect Server remoto
         run: |
-          # Use o URL do seu Prefect Server que está rodando no Docker Desktop,
-          # e que foi exposto via ngrok ou similar.
+          # Define a PREFECT_API_URL usando a sintaxe do PowerShell
           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
-          # Se você usar uma API Key para autenticação com o Prefect Server
-          prefect config set PREFECT_API_KEY="${{ secrets.PREFECT_API_KEY }}"
           prefect profile ls
-        env:
-          # É uma boa prática passar secrets via env para comandos run:
-          PREFECT_SERVER_URL: ${{ secrets.PREFECT_SERVER_URL }}
-          #PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }} # Adicione isso nos seus GitHub Secrets, se usar
+
+        shell: powershell # Garante PowerShell para este passo também
 
       - name: 🚀 Deploy do Flow
-        # Este comando irá registrar/atualizar o deployment no Prefect Server configurado acima.
         run: |
           prefect deploy
-        working-directory: . # Garante que o comando seja executado na raiz do repositório
-
-
-
-# name: Deploy Prefect Flow
-
-# on:
-#   push:
-#     branches:
-#       - main
-
-# jobs:
-#   deploy:
-#     runs-on: windows-latest # Alterado para Windows
-
-#     steps:
-#       - name: 🔁 Checkout do código
-#         uses: actions/checkout@v3
-
-#       - name: 🐍 Instalar Python 3.12.5
-#         uses: actions/setup-python@v4
-#         with:
-#           python-version: "3.12.5"
-
-#       - name: 📦 Instalar dependências
-#         run: |
-#           python -m pip install -U pip
-#           python -m pip install -r requirements.txt
-#           python -m pip install "prefect==2.16.4" pandapower networkx pandas numpy
-#           # Configura PYTHONPATH para Windows (PowerShell)
-#           $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
-        
-#         shell: powershell
-
-#       - name: 🔗 Configurar conexão com Prefect Server remoto
-#         run: |
-#           # Define a PREFECT_API_URL usando a sintaxe do PowerShell
-#           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
-#           prefect profile ls
-
-#         shell: powershell # Garante PowerShell para este passo também
-
-#       - name: 🚀 Deploy do Flow
-#         run: |
-#           prefect deploy
-#         shell: powershell
+        shell: powershell
