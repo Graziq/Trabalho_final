@@ -17,9 +17,9 @@ import os
 # Este é o caminho ABSOLUTO no seu sistema onde você quer que os arquivos sejam salvos.
 # Substitua pelo caminho real no seu computador.
 # Ex: r"C:\Users\graz1\Documents\MeusProjetos\Trabalho_Final_Resultados"
-#BASE_OUTPUT_DIR = r"C:\Users\graz1\UFF\mestrado\Trabalho_final\simulacao_resultados"
+BASE_OUTPUT_DIR = r"C:\Users\graz1\UFF\mestrado\Trabalho_final\simulacao_resultados"
 # Vamos usar uma variável de ambiente que será definida no docker-compose e nos deployments
-BASE_OUTPUT_DIR = os.getenv("PREFECT_SHARED_DATA_PATH", "/app/Trabalho_final/simulacao_resultados")
+#BASE_OUTPUT_DIR = os.getenv("PREFECT_SHARED_DATA_PATH", "/app/Trabalho_final/simulacao_resultados")
 
 
 
