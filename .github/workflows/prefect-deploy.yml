@@ -7,10 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest # Melhor usar Linux para Docker, a menos que haja uma razão forte para Windows
-    # O uso de `windows-latest` no GH Actions para construir e registrar deployments Docker
-    # é um pouco mais complexo se você for construir imagens Docker no Windows runner.
-    # Mudei para Ubuntu, que é mais comum para Docker builds.
+    runs-on: ubuntu-latest # Linux é geralmente mais estável para GitHub Actions
 
     steps:
       - name: 🔁 Checkout do código
@@ -30,33 +27,22 @@ jobs:
 
       - name: 🔗 Configurar conexão com Prefect Server remoto
         run: |
+          # Use o URL do seu Prefect Server que está rodando no Docker Desktop,
+          # e que foi exposto via ngrok ou similar.
           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
-          # prefect config set PREFECT_API_KEY="${{ secrets.PREFECT_API_KEY }}" # Se você tiver uma API Key
+          # Se você usar uma API Key para autenticação com o Prefect Server
+          prefect config set PREFECT_API_KEY="${{ secrets.PREFECT_API_KEY }}"
           prefect profile ls
         env:
-          # Para garantir que a API key seja usada se configurada
-          PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
-
-      # NOVO: Construir a imagem Docker ANTES de registrar o deployment
-      # A imagem será usada pelo serviço Dash e potencialmente pelo Prefect Worker/Agent
-      - name: 🐳 Build Docker image
-        run: |
-          docker build -t meu-projeto-power-system . # O nome da sua imagem
-          docker images # Para verificar
-
-      # NOVO: Iniciar o Docker Compose para o servidor Prefect e agente
-      - name: ⬆️ Start Docker Compose services
-        run: |
-          docker-compose -f infra/docker-compose.yml up -d --build # --build para reconstruir o Dash-app
-        # Para garantir que o docker-compose tenha tempo de iniciar
-          sleep 10
-        working-directory: .
+          # É uma boa prática passar secrets via env para comandos run:
+          PREFECT_SERVER_URL: ${{ secrets.PREFECT_SERVER_URL }}
+          #PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }} # Adicione isso nos seus GitHub Secrets, se usar
 
       - name: 🚀 Deploy do Flow
-        # prefect deploy usará o prefect.yaml na raiz do repositório
+        # Este comando irá registrar/atualizar o deployment no Prefect Server configurado acima.
         run: |
           prefect deploy
-        working-directory: . # Certifique-se de que está na raiz do repositório
+        working-directory: . # Garante que o comando seja executado na raiz do repositório
 
 
 
