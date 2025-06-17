@@ -30,7 +30,8 @@ services:
 
   # NOVO SERVIÇO: Prefect Agent (Worker)
   prefect-agent:
-    image: prefecthq/prefect:2.16.4-python3.12
+    prefect-agent:
+    build: .
     command: prefect agent start --pool default-agent-pool # O pool que você definiu no prefect.yaml
     environment:
       - PREFECT_HOME=/root/.prefect
