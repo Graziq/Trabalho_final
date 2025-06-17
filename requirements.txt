@@ -13,3 +13,5 @@ geojson
 PyYAML
 docker
 griffe==0.35.2
+dash
+plotly
