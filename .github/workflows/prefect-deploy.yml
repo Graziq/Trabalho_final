@@ -7,7 +7,10 @@ on:
 
 jobs:
   deploy:
-    runs-on: windows-latest # Alterado para Windows
+    runs-on: ubuntu-latest # Melhor usar Linux para Docker, a menos que haja uma razão forte para Windows
+    # O uso de `windows-latest` no GH Actions para construir e registrar deployments Docker
+    # é um pouco mais complexo se você for construir imagens Docker no Windows runner.
+    # Mudei para Ubuntu, que é mais comum para Docker builds.
 
     steps:
       - name: 🔁 Checkout do código
@@ -21,22 +24,81 @@ jobs:
       - name: 📦 Instalar dependências
         run: |
           python -m pip install -U pip
-          python -m pip install -r requirements.txt
-          python -m pip install "prefect==2.16.4" pandapower networkx pandas numpy
-          # Configura PYTHONPATH para Windows (PowerShell)
-          $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
-        
-        shell: powershell
+          pip install -r requirements.txt
+          # Assegure que prefect esteja instalado para o `prefect deploy`
+          pip install "prefect==2.16.4"
 
       - name: 🔗 Configurar conexão com Prefect Server remoto
         run: |
-          # Define a PREFECT_API_URL usando a sintaxe do PowerShell
           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
+          # prefect config set PREFECT_API_KEY="${{ secrets.PREFECT_API_KEY }}" # Se você tiver uma API Key
           prefect profile ls
+        env:
+          # Para garantir que a API key seja usada se configurada
+          PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
 
-        shell: powershell # Garante PowerShell para este passo também
+      # NOVO: Construir a imagem Docker ANTES de registrar o deployment
+      # A imagem será usada pelo serviço Dash e potencialmente pelo Prefect Worker/Agent
+      - name: 🐳 Build Docker image
+        run: |
+          docker build -t meu-projeto-power-system . # O nome da sua imagem
+          docker images # Para verificar
+
+      # NOVO: Iniciar o Docker Compose para o servidor Prefect e agente
+      - name: ⬆️ Start Docker Compose services
+        run: |
+          docker-compose -f infra/docker-compose.yml up -d --build # --build para reconstruir o Dash-app
+        # Para garantir que o docker-compose tenha tempo de iniciar
+        sleep 10
+        working-directory: .
 
       - name: 🚀 Deploy do Flow
+        # prefect deploy usará o prefect.yaml na raiz do repositório
         run: |
           prefect deploy
-        shell: powershell
+        working-directory: . # Certifique-se de que está na raiz do repositório
+
+        
+
+# name: Deploy Prefect Flow
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   deploy:
+#     runs-on: windows-latest # Alterado para Windows
+
+#     steps:
+#       - name: 🔁 Checkout do código
+#         uses: actions/checkout@v3
+
+#       - name: 🐍 Instalar Python 3.12.5
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: "3.12.5"
+
+#       - name: 📦 Instalar dependências
+#         run: |
+#           python -m pip install -U pip
+#           python -m pip install -r requirements.txt
+#           python -m pip install "prefect==2.16.4" pandapower networkx pandas numpy
+#           # Configura PYTHONPATH para Windows (PowerShell)
+#           $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
+        
+#         shell: powershell
+
+#       - name: 🔗 Configurar conexão com Prefect Server remoto
+#         run: |
+#           # Define a PREFECT_API_URL usando a sintaxe do PowerShell
+#           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
+#           prefect profile ls
+
+#         shell: powershell # Garante PowerShell para este passo também
+
+#       - name: 🚀 Deploy do Flow
+#         run: |
+#           prefect deploy
+#         shell: powershell

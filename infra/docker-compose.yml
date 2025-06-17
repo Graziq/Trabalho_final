@@ -1,3 +1,4 @@
+# infra/docker-compose.yml
 version: "3.8"
 
 services:
@@ -17,7 +18,6 @@ services:
     command: prefect server start --host 0.0.0.0 --port 4200
     environment:
       - PREFECT_HOME=/root/.prefect
-      # Prefect API URL aponta para o próprio servidor, usando o nome do serviço na rede Docker
       - PREFECT_API_URL=http://prefect-server:4200/api
     ports:
       - "4200:4200" # Expor a porta para acessar a UI do seu host
@@ -28,26 +28,113 @@ services:
     networks:
       - prefect-net
 
-  # NOVO SERVIÇO: Prefect Agent (Worker)
   prefect-agent:
-    image: prefecthq/prefect:2.16.4-python3.12
-    command: prefect agent start --pool default-agent-pool # O pool que você definiu no prefect.yaml
+    # Use a mesma imagem base que você construiria para os deployments,
+    # para garantir que as libs estejam disponíveis.
+    # Alternativamente, você pode construir uma imagem customizada para o agente que já inclua suas dependências.
+    image: prefecthq/prefect:2.16.4-python3.12 # Esta imagem tem o Prefect, mas não suas libs de power system/dash
+    # Se você quiser que o agente tenha todas as suas libs, você pode:
+    # 1. Construir uma imagem customizada: `FROM prefecthq/prefect:2.16.4-python3.12` e `RUN pip install -r requirements.txt`
+    # 2. Mudar a imagem aqui para a sua imagem customizada `meu-projeto-power-system` (se você for usar infra: docker-container no deployment)
+    command: prefect agent start --pool default-agent-pool
     environment:
       - PREFECT_HOME=/root/.prefect
-      # O agente precisa saber onde encontrar o Prefect Server
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Define a variável de ambiente para o caminho de dados compartilhado.
+      # Será usada pelos seus scripts Python.
+      - PREFECT_SHARED_DATA_PATH=/app/Trabalho_final/simulacao_resultados 
     volumes:
-      # O agente precisará acessar seu código!
-      # Monte o diretório do seu projeto local dentro do contêiner do agente
-      - ./Trabalho_final:/app/Trabalho_final # <--- IMPORTANTE: Ajuste o caminho "./Trabalho_final" se seu projeto estiver em outra pasta
+      # O agente precisará clonar o código do GitHub para este local
+      # e os CSVs serão salvos aqui. Este é o volume persistente.
+      - ./Trabalho_final:/app/Trabalho_final 
     depends_on:
-      - prefect-server # O agente depende do servidor estar rodando
+      - prefect-server
+    networks:
+      - prefect-net
+
+  # NOVO SERVIÇO: Aplicação Dash
+  dash-app:
+    build:
+      context: ../../ # Aponta para a raiz do seu projeto onde está o Dockerfile
+      dockerfile: Dockerfile
+    command: python src/flows/visualizacao_impacto.py # Este comando executa o Dash
+    environment:
+      # A aplicação Dash também precisa saber onde encontrar os dados
+      - PREFECT_SHARED_DATA_PATH=/app/Trabalho_final/simulacao_resultados
+    ports:
+      - "8050:8050" # Mapeia a porta 8050 do contêiner para a porta 8050 do host
+    volumes:
+      # O serviço Dash precisa acessar o mesmo volume onde os CSVs são salvos
+      - ./Trabalho_final:/app/Trabalho_final # Monta a pasta de resultados no mesmo local
+    depends_on:
+      - prefect-server # Pode depender do server se usar Prefect artifacts para monitoramento
     networks:
       - prefect-net
 
 volumes:
   pgdata:
   prefect_data:
+  # O volume 'Trabalho_final' agora será gerenciado pelo docker-compose.
+  # Ele persistirá os dados do seu projeto e resultados.
+  # Não é um volume nomeado do Docker (como pgdata/prefect_data), mas sim uma montagem bind de host.
+  # Para um volume nomeado persistente, você poderia definir:
+  # my_data_volume:
+  # E então mapear: `my_data_volume:/app/Trabalho_final/simulacao_resultados` em ambos os serviços.
+  # O mapeamento bind (`./Trabalho_final:/app/Trabalho_final`) é mais fácil para desenvolvimento local.
 
 networks:
   prefect-net:
+
+# version: "3.8"
+
+# services:
+#   postgres:
+#     image: postgres:13
+#     environment:
+#       POSTGRES_USER: prefect
+#       POSTGRES_PASSWORD: prefect
+#       POSTGRES_DB: prefect
+#     volumes:
+#       - pgdata:/var/lib/postgresql/data
+#     networks:
+#       - prefect-net
+
+#   prefect-server:
+#     image: prefecthq/prefect:2.16.4-python3.12
+#     command: prefect server start --host 0.0.0.0 --port 4200
+#     environment:
+#       - PREFECT_HOME=/root/.prefect
+#       # Prefect API URL aponta para o próprio servidor, usando o nome do serviço na rede Docker
+#       - PREFECT_API_URL=http://prefect-server:4200/api
+#     ports:
+#       - "4200:4200" # Expor a porta para acessar a UI do seu host
+#     volumes:
+#       - prefect_data:/root/.prefect
+#     depends_on:
+#       - postgres
+#     networks:
+#       - prefect-net
+
+#   # NOVO SERVIÇO: Prefect Agent (Worker)
+#   prefect-agent:
+#     image: prefecthq/prefect:2.16.4-python3.12
+#     command: prefect agent start --pool default-agent-pool # O pool que você definiu no prefect.yaml
+#     environment:
+#       - PREFECT_HOME=/root/.prefect
+#       # O agente precisa saber onde encontrar o Prefect Server
+#       - PREFECT_API_URL=http://prefect-server:4200/api
+#     volumes:
+#       # O agente precisará acessar seu código!
+#       # Monte o diretório do seu projeto local dentro do contêiner do agente
+#       - ./Trabalho_final:/app/Trabalho_final # <--- IMPORTANTE: Ajuste o caminho "./Trabalho_final" se seu projeto estiver em outra pasta
+#     depends_on:
+#       - prefect-server # O agente depende do servidor estar rodando
+#     networks:
+#       - prefect-net
+
+# volumes:
+#   pgdata:
+#   prefect_data:
+
+# networks:
+#   prefect-net:
