@@ -365,7 +365,7 @@ def analisar_impacto_tensao_formato_novo(input_df_tensao, output_filename='impac
 
         run_context = get_run_context()
         if run_context:
-            run_name = run_context.flow_run.name
+            run_name = run_context.task_run.flow_run_name
             markdown_report = f"""
 ### Relatório de Impacto de Tensão
 **Flow Run**: `{run_name}`
