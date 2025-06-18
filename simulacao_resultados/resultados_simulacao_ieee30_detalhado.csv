@@ -7,7 +7,7 @@ cenario,linha_desligada,status,ilhamento,num_componentes_conectados,convergencia
 0,5,normal,False,1.0,True
 0,6,normal,False,1.0,True
 0,7,normal,False,1.0,True
-0,8,normal,False,1.0,True
+0,8,crítica,False,1.0,True
 0,9,crítica,False,1.0,True
 0,10,normal,False,1.0,True
 0,11,normal,False,1.0,True
@@ -26,7 +26,7 @@ cenario,linha_desligada,status,ilhamento,num_componentes_conectados,convergencia
 0,24,crítica,False,1.0,True
 0,25,crítica,False,1.0,True
 0,26,normal,False,1.0,True
-0,27,normal,False,1.0,True
+0,27,crítica,False,1.0,True
 0,28,normal,False,1.0,True
 0,29,normal,False,1.0,True
 0,30,normal,False,1.0,True
@@ -48,7 +48,7 @@ cenario,linha_desligada,status,ilhamento,num_componentes_conectados,convergencia
 1,5,normal,False,1.0,True
 1,6,normal,False,1.0,True
 1,7,normal,False,1.0,True
-1,8,crítica,False,1.0,True
+1,8,normal,False,1.0,True
 1,9,crítica,False,1.0,True
 1,10,normal,False,1.0,True
 1,11,normal,False,1.0,True
