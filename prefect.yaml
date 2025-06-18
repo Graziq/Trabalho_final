@@ -8,17 +8,10 @@ name: Trabalho_final
 prefect-version: 2.16.4
 
 # build section allows you to manage and build docker images
-build:
-  - prefect_docker.build:
-      image_name: graziq/prefect-flows # Substitua 'graziq' pelo seu usuário do Docker Hub
-      image_tag: latest
-      platform: linux/amd64 # Agentes Docker geralmente rodam em Linux
+build: null
 
 # push section allows you to manage if and how this project is uploaded to remote locations
-push:
-  - prefect_docker.push:
-      image_name: graziq/prefect-flows # Substitua 'graziq' pelo seu usuário do Docker Hub
-      image_tag: latest
+push: null
 
 # pull section allows you to provide instructions for cloning this project in remote locations
 pull:
@@ -29,32 +22,15 @@ pull:
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
   - name: simulacao-contingencia-ieee30
-    version: 1
+    version: 1 # Adicionado valor de versão
     tags: []
-    description: "FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras,\nsalvando os resultados e os dados de tensão para posterior análise de impacto."
+    description: "FLOW: Orquestra a simulação de contingências N-1 na rede\
+      \ IEEE 30 barras,\nsalvando os resultados e os dados de tensão para posterior\
+      \ análise de impacto."
     entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
     parameters: {}
     work_pool:
       name: default-agent-pool
-      work_queue_name: null # Ou deixe vazio, null é mais explícito se não usar uma fila específica
-      job_variables:
-        image: graziq/prefect-flows:latest # <--- REFERENCIA A IMAGEM QUE SERÁ CONSTRUÍDA E ENVIADA
-    job_variables: {} # Isso aqui geralmente se refere a job_variables em nível de deployment, mas o essencial é no work_pool
-    schedules: []
-
-  # Adicione o segundo deployment aqui também, para o flow de análise de impacto
-  - name: analise-impacto-tensao-ieee30
-    version: 1
-    tags: []
-    description: "FLOW: Analisa o impacto de tensão a partir de dados de contingências não críticas."
-    entrypoint: src/flows/resultados2.py:analise_impacto_flow
-    parameters:
-      input_csv_filename: "tensao_barras_nao_criticos_ieee30.csv"
-      num_barras: 30
-    work_pool:
-      name: default-agent-pool
-      work_queue_name: null
-      job_variables:
-        image: graziq/prefect-flows:latest # <--- REFERENCIA A MESMA IMAGEM
+    # work_queue_name: null
     job_variables: {}
     schedules: []
