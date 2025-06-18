@@ -1,47 +1,45 @@
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+
+
+# Generic metadata about this project
 name: Trabalho_final
-prefect-version: "2.16.4"
+prefect-version: 2.16.4
 
-# Configuração do build para Docker
-build:
-  - prefect_docker.deployments.steps.build_docker_image:
-      id: build-image
-      requires: prefect-docker>=0.3.0
-      image_name: "trabalho-final-image"
-      tag: "latest"
-      dockerfile: "infra/Dockerfile"
-      push: false
 
-# Configurações de deploy
-deployments:
-  - name: "simulacao-contingencia-ieee30"
-    description: "Simulação de contingências N-1 na rede IEEE 30 barras"
-    entrypoint: "src/flows/resultados2.py:simulacao_contingencia_flow"
-    work_pool:
-      name: "default-agent-pool"
-      work_queue_name: "default"
-      job_variables:
-        image: "{{ build-image.image }}"
-        env:
-          PREFECT_LOGGING_LEVEL: "INFO"
-        volumes:
-          - "/caminho/local/simulacao_resultados:/app/simulacao_resultados"
 
-# Configurações para CI/CD
+# build section allows you to manage and build docker images
+build: null
+
+
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push: null
+
+
+
+# pull section allows you to provide instructions for cloning this project in remote locations
 pull:
-  - prefect.deployments.steps.git_clone:
-      id: clone-repo
-      repository: "https://github.com/Graziq/Trabalho_final.git"
-      branch: "main"
+- prefect.deployments.steps.git_clone:
+    repository: https://github.com/Graziq/Trabalho_final.git
+    branch: main
 
-  - prefect.deployments.steps.set_working_directory:
-      directory: "{{ clone-repo.directory }}"
 
-push:
-  - prefect.deployments.steps.run_shell_script:
-      id: push-to-github
-      script: |
-        git config --global user.email "actions@github.com"
-        git config --global user.name "GitHub Actions"
-        git add .
-        git commit -m "Update deployment" || echo "No changes to commit"
-        git push origin main || echo "Nothing to push"
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: simulacao-contingencia-ieee30
+  version: null
+  tags: []
+  description: "FLOW: Orquestra a simula\xE7\xE3o de conting\xEAncias N-1 na rede\
+    \ IEEE 30 barras,\nsalvando os resultados e os dados de tens\xE3o para posterior\
+    \ an\xE1lise de impacto."
+  entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
+  parameters: {}
+  work_pool:
+    name: default-agent-pool
+    work_queue_name: null
+    job_variables: {}
+  schedules: []

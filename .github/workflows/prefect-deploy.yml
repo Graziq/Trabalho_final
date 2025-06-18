@@ -1,33 +1,58 @@
-name: Executar Análise e Visualização
+name: Deploy Prefect Flow
+
+
 
 on:
-  workflow_run:
-    workflows: ["Deploy Prefect Flow"]
-    types: [completed]
+  push:
+    branches:
+      - main
+
+
 
 jobs:
-  process-data:
-    runs-on: ubuntu-latest
-    env:
-      DOCKER_IMAGE: visualizacao-impacto
-    
+  deploy:
+    runs-on: windows-latest # Alterado para Windows
+
+
+
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Baixar dados do Prefect
-        uses: actions/download-artifact@v3
+      - name: 🔁 Checkout do código
+        uses: actions/checkout@v3
+
+
+
+      - name: 🐍 Instalar Python 3.12.5
+        uses: actions/setup-python@v4
         with:
-          name: tensao_barras_nao_criticos_ieee30.csv
-          path: simulacao_resultados/
-      
-      - name: Construir imagem
-        run: docker build --target visualization -t $DOCKER_IMAGE .
-      
-      - name: Executar container
+          python-version: "3.12.5"
+
+
+
+      - name: 📦 Instalar dependências
         run: |
-          docker run -d \
-            -p 8050:8050 \
-            -v $(pwd)/simulacao_resultados:/app/simulacao_resultados \
-            $DOCKER_IMAGE
-          
-          echo "Dashboard disponível em: http://localhost:8050" >> $GITHUB_STEP_SUMMARY
+          python -m pip install -U pip
+          python -m pip install -r requirements.txt
+          python -m pip install "prefect==2.16.4" pandapower networkx pandas numpy
+          # Configura PYTHONPATH para Windows (PowerShell)
+          $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
+       
+        shell: powershell
+
+
+
+      - name: 🔗 Configurar conexão com Prefect Server remoto
+        run: |
+          # Define a PREFECT_API_URL usando a sintaxe do PowerShell
+          prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
+          prefect profile ls
+
+
+
+        shell: powershell # Garante PowerShell para este passo também
+
+
+
+      - name: 🚀 Deploy do Flow
+        run: |
+          prefect deploy
+        shell: powershell
