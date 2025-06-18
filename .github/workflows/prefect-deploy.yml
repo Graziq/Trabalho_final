@@ -54,5 +54,5 @@ jobs:
 
       - name: 🚀 Deploy do Flow
         run: |
-          prefect deploy
+          prefect deploy src/flows/resultados2.py:simulacao_contingencia_flow --name simulacao-contingencia-ieee30 --pool default-agent-pool
         shell: powershell
