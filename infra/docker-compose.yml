@@ -48,17 +48,17 @@ services:
 
 
 
-  # prefect-agent:
-  #   image: prefecthq/prefect:2.16.4-python3.12
-  #   command: prefect agent start --pool default-agent-pool
-  #   environment:
-  #     - PREFECT_HOME=/root/.prefect
-  #     - PREFECT_API_URL=http://prefect-server:4200/api
-  #   volumes: {}
-  #   depends_on:
-  #     - prefect-server # O agente depende do servidor estar rodando
-  #   networks:
-  #     - prefect-net
+  prefect-agent:
+    image: prefecthq/prefect:2.16.4-python3.12
+    command: prefect agent start --pool default-agent-pool
+    environment:
+      - PREFECT_HOME=/root/.prefect
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    volumes: {}
+    depends_on:
+      - prefect-server
+    networks:
+      - prefect-net
 
 
 
