@@ -22,7 +22,7 @@ cenario,linha_desligada,status,ilhamento,num_componentes_conectados,convergencia
 0,20,normal,False,1.0,True
 0,21,normal,False,1.0,True
 0,22,normal,False,1.0,True
-0,23,normal,False,1.0,True
+0,23,crítica,False,1.0,True
 0,24,crítica,False,1.0,True
 0,25,crítica,False,1.0,True
 0,26,normal,False,1.0,True

@@ -5,7 +5,6 @@ from dash.dependencies import Input, Output
 
 # --- 1. Carregar os Dados ---
 try:
-    # Carregamos apenas este arquivo, pois já está pré-filtrado
     df_tensao = pd.read_csv('../../simulacao_resultados/tensao_barras_nao_criticos_ieee30.csv')
 except FileNotFoundError:
     print("Certifique-se de que 'tensao_barras_nao_criticos_ieee30.csv' está no mesmo diretório do script.")
