@@ -54,7 +54,7 @@ services:
     environment:
       - PREFECT_HOME=/root/.prefect
       - PREFECT_API_URL=http://prefect-server:4200/api
-    volumes: {}
+    volumes: []
     depends_on:
       - prefect-server
     networks:
