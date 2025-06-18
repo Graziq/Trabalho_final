@@ -14,6 +14,20 @@ services:
     networks:
       - prefect-net
 
+  # hasura:
+  #   image: hasura/graphql-engine:v2.30.0
+  #   restart: always
+  #   environment:
+  #     HASURA_GRAPHQL_DATABASE_URL: postgres://prefect:prefect@postgres:5432/prefect
+  #     HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+  #     HASURA_GRAPHQL_DEV_MODE: "true"
+  #     HASURA_GRAPHQL_ENABLED_LOGS: startup, http-log, webhook-log, websocket-log
+  #   depends_on:
+  #     - postgres
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - prefect-net
 
 
   prefect-server:
@@ -21,10 +35,9 @@ services:
     command: prefect server start --host 0.0.0.0 --port 4200
     environment:
       - PREFECT_HOME=/root/.prefect
-      # Prefect API URL aponta para o próprio servidor, usando o nome do serviço na rede Docker
       - PREFECT_API_URL=http://prefect-server:4200/api
     ports:
-      - "4200:4200" # Expor a porta para acessar a UI do seu host
+      - "4200:4200" 
     volumes:
       - prefect_data:/root/.prefect
     depends_on:
@@ -34,22 +47,18 @@ services:
 
 
 
-  # NOVO SERVIÇO: Prefect Agent (Worker)
-  prefect-agent:
-    image: prefecthq/prefect:2.16.4-python3.12
-    command: prefect agent start --pool default-agent-pool # O pool que você definiu no prefect.yaml
-    environment:
-      - PREFECT_HOME=/root/.prefect
-      # O agente precisa saber onde encontrar o Prefect Server
-      - PREFECT_API_URL=http://prefect-server:4200/api
-    volumes:
-      # O agente precisará acessar seu código!
-      # Monte o diretório do seu projeto local dentro do contêiner do agente
-      - ./Trabalho_final:/app/Trabalho_final # <--- IMPORTANTE: Ajuste o caminho "./Trabalho_final" se seu projeto estiver em outra pasta
-    depends_on:
-      - prefect-server # O agente depende do servidor estar rodando
-    networks:
-      - prefect-net
+
+  # prefect-agent:
+  #   image: prefecthq/prefect:2.16.4-python3.12
+  #   command: prefect agent start --pool default-agent-pool
+  #   environment:
+  #     - PREFECT_HOME=/root/.prefect
+  #     - PREFECT_API_URL=http://prefect-server:4200/api
+  #   volumes: {}
+  #   depends_on:
+  #     - prefect-server # O agente depende do servidor estar rodando
+  #   networks:
+  #     - prefect-net
 
 
 

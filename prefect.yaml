@@ -9,29 +9,9 @@ name: Trabalho_final
 prefect-version: 2.16.4
 
 
-
-# build section allows you to manage and build docker images
-build: null
-
-
-
-# push section allows you to manage if and how this project is uploaded to remote locations
-push: null
-
-
-
-# pull section allows you to provide instructions for cloning this project in remote locations
-pull:
-- prefect.deployments.steps.git_clone:
-    repository: https://github.com/Graziq/Trabalho_final.git
-    branch: main
-
-
-
-# the deployments section allows you to provide configuration for deploying flows
 deployments:
 - name: simulacao-contingencia-ieee30
-  version: null
+  version: "1.0"
   tags: []
   description: "FLOW: Orquestra a simula\xE7\xE3o de conting\xEAncias N-1 na rede\
     \ IEEE 30 barras,\nsalvando os resultados e os dados de tens\xE3o para posterior\
@@ -40,6 +20,6 @@ deployments:
   parameters: {}
   work_pool:
     name: default-agent-pool
-    work_queue_name: null
+    work_queue_name: default
     job_variables: {}
   schedules: []

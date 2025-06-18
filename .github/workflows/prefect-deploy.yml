@@ -42,7 +42,6 @@ jobs:
 
       - name: 🔗 Configurar conexão com Prefect Server remoto
         run: |
-          # Define a PREFECT_API_URL usando a sintaxe do PowerShell
           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
           prefect profile ls
 
@@ -52,7 +51,30 @@ jobs:
 
 
 
-      - name: 🚀 Deploy do Flow
+      - name: 🚀 Deploy do Flow com retry
         run: |
-          prefect deploy src/flows/resultados2.py:simulacao_contingencia_flow --name simulacao-contingencia-ieee30 --pool default-agent-pool
+          $max_retries = 5
+          $retry_delay_seconds = 5
+          $attempt = 0
+          $success = $false
+
+          while ($attempt -lt $max_retries -and -not $success) {
+            $attempt++
+            Write-Host "Tentativa $($attempt) de $($max_retries) para o deploy do Prefect..."
+            
+            prefect deploy src/flows/resultados2.py:simulacao_contingencia_flow --name simulacao-contingencia-ieee30 --pool default-agent-pool
+            
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Deploy do Prefect realizado com sucesso!"
+              $success = $true
+            } else {
+              Write-Host "Deploy do Prefect falhou. Aguardando $($retry_delay_seconds) segundos antes de tentar novamente..."
+              Start-Sleep -Seconds $retry_delay_seconds
+            }
+          }
+
+          if (-not $success) {
+            Write-Error "O deploy do Prefect falhou após $($max_retries) tentativas."
+            exit 1 # Força a falha do passo no GitHub Actions
+          }
         shell: powershell
