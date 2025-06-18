@@ -419,6 +419,9 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
     # 9. Salva os dados de tensão para contingências NÃO CRÍTICAS
     salvar_tensao_nao_criticos(tensao_cenarios_nao_criticos_para_csv, output_filename='tensao_barras_nao_criticos_ieee30.csv')
 
+    csv_path = os.path.join(BASE_OUTPUT_DIR, 'tensao_barras_nao_criticos_ieee30.csv')
+    salvar_artefato_github(csv_path)
+
 
 # --- FLOW 2: Análise de Impacto (Separado)
 @flow(name="Analise de Impacto de Tensao IEEE 30 Barras", log_prints=True)
@@ -445,6 +448,13 @@ def analise_impacto_flow(input_csv_filename: str = 'tensao_barras_nao_criticos_i
     analisar_impacto_tensao_formato_novo(df_tensao, num_barras=num_barras)
 
     print("Análise de impacto de tensão concluída.")
+
+@task
+def salvar_artefato_github(csv_path):
+    """Salva o CSV como artefato para uso no GitHub Actions"""
+    if os.getenv('GITHUB_ACTIONS') == 'true':
+        print(f"::set-output name=csv_path::{csv_path}")
+        # No GitHub Actions, isso fará o arquivo estar disponível como artefato
 
 # --- Execução Principal do Script ---
 if __name__ == "__main__":
