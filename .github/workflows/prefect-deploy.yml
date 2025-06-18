@@ -1,4 +1,4 @@
-name: Analise Barras Impactadas
+name: Executar Análise e Visualização
 
 on:
   workflow_run:
@@ -6,30 +6,28 @@ on:
     types: [completed]
 
 jobs:
-  analise:
+  process-data:
     runs-on: ubuntu-latest
+    env:
+      DOCKER_IMAGE: visualizacao-impacto
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Download artefato do Prefect
+      - uses: actions/checkout@v3
+      
+      - name: Baixar dados do Prefect
         uses: actions/download-artifact@v3
         with:
           name: tensao_barras_nao_criticos_ieee30.csv
-          path: data/
-
-      - name: Build e rodar análise
+          path: simulacao_resultados/
+      
+      - name: Construir imagem
+        run: docker build --target visualization -t $DOCKER_IMAGE .
+      
+      - name: Executar container
         run: |
-          docker build -t visualizacao_impacto .
-          docker run -v $PWD/data:/data -e INPUT_CSV=/data/tensao_barras_nao_criticos_ieee30.csv analise-barras python analise_barras.py
-
-      - name: Mostrar resultados
-        run: |
-          cat data/resultados.md >> $GITHUB_STEP_SUMMARY
-          echo "Relatório gerado com sucesso!"
-
-      - name: Upload relatório
-        uses: actions/upload-artifact@v3
-        with:
-          name: relatorio-barras-impactadas
-          path: data/resultados.md
+          docker run -d \
+            -p 8050:8050 \
+            -v $(pwd)/simulacao_resultados:/app/simulacao_resultados \
+            $DOCKER_IMAGE
+          
+          echo "Dashboard disponível em: http://localhost:8050" >> $GITHUB_STEP_SUMMARY
