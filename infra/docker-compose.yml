@@ -1,4 +1,7 @@
-# Conteúdo do seu docker-compose.yml aqui
+version: "3.8"
+
+
+
 services:
   postgres:
     image: postgres:13
@@ -6,52 +9,55 @@ services:
       POSTGRES_USER: prefect
       POSTGRES_PASSWORD: prefect
       POSTGRES_DB: prefect
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U prefect -d prefect"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
       - prefect-net
 
+
+
   prefect-server:
     image: prefecthq/prefect:2.16.4-python3.12
     command: prefect server start --host 0.0.0.0 --port 4200
     environment:
-      PREFECT_HOME: /root/.prefect
-      PREFECT_API_URL: http://prefect-server:4200/api
+      - PREFECT_HOME=/root/.prefect
+      # Prefect API URL aponta para o próprio servidor, usando o nome do serviço na rede Docker
+      - PREFECT_API_URL=http://prefect-server:4200/api
     ports:
-      - "4200:4200"
+      - "4200:4200" # Expor a porta para acessar a UI do seu host
     volumes:
       - prefect_data:/root/.prefect
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     networks:
       - prefect-net
 
+
+
+  # NOVO SERVIÇO: Prefect Agent (Worker)
   prefect-agent:
-    build:
-      context: .. # Contexto é o diretório pai, onde src e simulacao_resultados estão
-      dockerfile: infra/Dockerfile # Dockerfile dentro da pasta infra
-    command: prefect agent start --pool default-agent-pool
+    image: prefecthq/prefect:2.16.4-python3.12
+    command: prefect agent start --pool default-agent-pool # O pool que você definiu no prefect.yaml
     environment:
-      PREFECT_HOME: /root/.prefect
-      PREFECT_API_URL: http://prefect-server:4200/api
+      - PREFECT_HOME=/root/.prefect
+      # O agente precisa saber onde encontrar o Prefect Server
+      - PREFECT_API_URL=http://prefect-server:4200/api
     volumes:
-      - ../src:/app/src # Monta o src do host no container
-      - ../simulacao_resultados:/app/simulacao_resultados # Monta simulacao_resultados do host
+      # O agente precisará acessar seu código!
+      # Monte o diretório do seu projeto local dentro do contêiner do agente
+      - ./Trabalho_final:/app/Trabalho_final # <--- IMPORTANTE: Ajuste o caminho "./Trabalho_final" se seu projeto estiver em outra pasta
     depends_on:
-      prefect-server:
-        condition: service_started
+      - prefect-server # O agente depende do servidor estar rodando
     networks:
       - prefect-net
+
+
 
 volumes:
   pgdata:
   prefect_data:
+
+
 
 networks:
   prefect-net:
