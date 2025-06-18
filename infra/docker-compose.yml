@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:13
@@ -7,6 +5,11 @@ services:
       POSTGRES_USER: prefect
       POSTGRES_PASSWORD: prefect
       POSTGRES_DB: prefect
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prefect -d prefect"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -16,28 +19,32 @@ services:
     image: prefecthq/prefect:2.16.4-python3.12
     command: prefect server start --host 0.0.0.0 --port 4200
     environment:
-      - PREFECT_HOME=/root/.prefect
-      - PREFECT_API_URL=http://prefect-server:4200/api
+      PREFECT_HOME: /root/.prefect
+      PREFECT_API_URL: http://prefect-server:4200/api
     ports:
       - "4200:4200"
     volumes:
       - prefect_data:/root/.prefect
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - prefect-net
 
   prefect-agent:
-    build: .
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
     command: prefect agent start --pool default-agent-pool
     environment:
-      - PREFECT_HOME=/root/.prefect
-      - PREFECT_API_URL=http://prefect-server:4200/api
+      PREFECT_HOME: /root/.prefect
+      PREFECT_API_URL: http://prefect-server:4200/api
     volumes:
-      - ../:/app/Trabalho_final
-      - ./data:/app/data
+      - ../src:/app/src
+      - ../simulacao_resultados:/app/simulacao_resultados
     depends_on:
-      - prefect-server
+      prefect-server:
+        condition: service_started
     networks:
       - prefect-net
 
