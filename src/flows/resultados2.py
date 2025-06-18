@@ -382,7 +382,7 @@ Número de registros de impacto: {len(df_impacto_novo_formato)}
 
 
 # --- FLOW 1: Simulação de Contingências ---
-@flow(name="Simulacao de Contingencia N-1 IEEE 30 Barras", log_prints=True)
+@flow(name="Simulacao-de-Contingencia-N-1-IEEE-30-Barras", log_prints=True)
 def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: float = 0.94, line_loading_max: float = 120):
     """
     FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras,
