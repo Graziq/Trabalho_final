@@ -17,15 +17,13 @@ import os
 
 
 
-# --- 1. Defina um diretório base para todos os arquivos de saída ---
-# Este é o caminho ABSOLUTO no seu sistema onde você quer que os arquivos sejam salvos.
-# Substitua pelo caminho real no seu computador.
-# Ex: r"C:\Users\graz1\Documents\MeusProjetos\Trabalho_Final_Resultados"
+# --- 1. Diretório base para todos os arquivos de saída ---
+
 BASE_OUTPUT_DIR = r"C:\Users\graz1\UFF\mestrado\Trabalho_final\simulacao_resultados"
 
 
 
-# Crie o diretório se ele não existir
+
 os.makedirs(BASE_OUTPUT_DIR, exist_ok=True)
 
 
@@ -35,9 +33,9 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 
 
-# --- Adicione esta linha AQUI ---
+#teste pois estava travando (lembrar de rodar o agent antes)
 print(f"DEBUG: pandapower version in worker: {pp.__version__}")
-# --- Fim da linha a ser adicionada ---
+
 
 
 
@@ -152,8 +150,6 @@ def aplicar_dados_ao_net(net, dados):
     Aplica os dados de um cenário específico (gerados por gerar_dados_cenario)
     à rede pandapower.
     """
-    # É importante copiar a rede ANTES de aplicar os dados se você quiser manter a rede original intacta
-    # para múltiplos cenários ou operações futuras.
    
     net_copy = pp.from_json_string(pp.to_json(net))
 

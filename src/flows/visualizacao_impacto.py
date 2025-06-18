@@ -1,14 +1,19 @@
 import pandas as pd
 from dash import Dash, dcc, html, dash_table
 from dash.dependencies import Input, Output
+import os
+
+script_dir = os.path.dirname(__file__)
+file_path = os.path.join(script_dir, '..', '..', 'simulacao_resultados', 'tensao_barras_nao_criticos_ieee30.csv')
 
 
 # --- 1. Carregar os Dados ---
 try:
-    df_tensao = pd.read_csv('../../simulacao_resultados/tensao_barras_nao_criticos_ieee30.csv')
+    df_tensao = pd.read_csv(file_path)
+    print(f"Arquivo CSV carregado com sucesso de: {file_path}")
 except FileNotFoundError:
-    print("Certifique-se de que 'tensao_barras_nao_criticos_ieee30.csv' está no mesmo diretório do script.")
-    exit()
+    print(f"Erro: O arquivo '{file_path}' não foi encontrado.")
+    exit() # Encerra a aplicação se o arquivo não for encontrado
 
 
 # --- 2. Pré-processar os Dados ---
