@@ -1,7 +1,5 @@
 version: "3.8"
 
-
-
 services:
   postgres:
     image: postgres:13
@@ -13,8 +11,6 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - prefect-net
-
-
 
   prefect-server:
     image: prefecthq/prefect:2.16.4-python3.12
@@ -32,32 +28,25 @@ services:
     networks:
       - prefect-net
 
-
-
   # NOVO SERVIÇO: Prefect Agent (Worker)
   prefect-agent:
-    image: prefecthq/prefect:2.16.4-python3.12
-    command: prefect agent start --pool default-agent-pool # O pool que você definiu no prefect.yaml
+    image: graziq/prefect-flows:latest # <--- Altere para a sua imagem personalizada!
+    command: prefect agent start --pool default-agent-pool
     environment:
       - PREFECT_HOME=/root/.prefect
-      # O agente precisa saber onde encontrar o Prefect Server
       - PREFECT_API_URL=http://prefect-server:4200/api
-    volumes:
-      # O agente precisará acessar seu código!
-      # Monte o diretório do seu projeto local dentro do contêiner do agente
-      - ./Trabalho_final:/app/Trabalho_final # <--- IMPORTANTE: Ajuste o caminho "./Trabalho_final" se seu projeto estiver em outra pasta
+    # volumes: # Remova ou comente esta seção, a menos que precise de outros arquivos
+    #   # O agente precisará acessar seu código!
+    #   # Monte o diretório do seu projeto local dentro do contêiner do agente
+    #   - ./Trabalho_final:/app/Trabalho_final # <--- IMPORTANTE: Ajuste o caminho "./Trabalho_final" se seu projeto estiver em outra pasta
     depends_on:
       - prefect-server # O agente depende do servidor estar rodando
     networks:
       - prefect-net
 
-
-
 volumes:
   pgdata:
   prefect_data:
-
-
 
 networks:
   prefect-net:
