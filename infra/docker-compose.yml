@@ -1,6 +1,5 @@
+# docker-compose.yml (dentro de Trabalho_final/infra/)
 version: "3.8"
-
-
 
 services:
   postgres:
@@ -14,22 +13,6 @@ services:
     networks:
       - prefect-net
 
-  # hasura:
-  #   image: hasura/graphql-engine:v2.30.0
-  #   restart: always
-  #   environment:
-  #     HASURA_GRAPHQL_DATABASE_URL: postgres://prefect:prefect@postgres:5432/prefect
-  #     HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
-  #     HASURA_GRAPHQL_DEV_MODE: "true"
-  #     HASURA_GRAPHQL_ENABLED_LOGS: startup, http-log, webhook-log, websocket-log
-  #   depends_on:
-  #     - postgres
-  #   ports:
-  #     - "8080:8080"
-  #   networks:
-  #     - prefect-net
-
-
   prefect-server:
     image: prefecthq/prefect:2.16.4-python3.12
     command: prefect server start --host 0.0.0.0 --port 4200
@@ -37,7 +20,7 @@ services:
       - PREFECT_HOME=/root/.prefect
       - PREFECT_API_URL=http://prefect-server:4200/api
     ports:
-      - "4200:4200" 
+      - "4200:4200"
     volumes:
       - prefect_data:/root/.prefect
     depends_on:
@@ -45,28 +28,29 @@ services:
     networks:
       - prefect-net
 
-
-
-
   prefect-agent:
-    image: prefecthq/prefect:2.16.4-python3.12
+    build:
+      context: ..  # <-- MUITO IMPORTANTE: Define o contexto de build para a pasta 'Trabalho_final/'
+      dockerfile: ./infra/Dockerfile # <-- Caminho relativo para o Dockerfile a partir do contexto
     command: prefect agent start --pool default-agent-pool
     environment:
       - PREFECT_HOME=/root/.prefect
       - PREFECT_API_URL=http://prefect-server:4200/api
-    volumes: []
+      - DB_USER=prefect
+      - DB_PASSWORD=prefect
+      - DB_HOST=postgres
+      - DB_NAME=prefect
+    volumes:
+      # Monta a pasta 'Trabalho_final/' (referenciada por '..') como '/app' dentro do contêiner.
+      - ../:/app
     depends_on:
       - prefect-server
     networks:
       - prefect-net
 
-
-
 volumes:
   pgdata:
   prefect_data:
-
-
 
 networks:
   prefect-net:
