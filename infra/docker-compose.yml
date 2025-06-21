@@ -1,6 +1,4 @@
 # docker-compose.yml (dentro de Trabalho_final/infra/)
-version: "3.8"
-
 services:
   postgres:
     image: postgres:13
