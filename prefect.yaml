@@ -1,6 +1,9 @@
 name: Trabalho_final
 prefect-version: 2.16.4
 
+pull:
+  - prefect.deployments.steps.local.PythonEnvironment: {}
+
 deployments:
   - name: simulacao-contingencia-ieee30
     version: "1.0"
@@ -10,7 +13,6 @@ deployments:
     parameters: {}
     work_pool:
       name: default-agent-pool
-      work_queue_name: default
       job_variables: {}
     schedules: []
 
@@ -22,6 +24,5 @@ deployments:
     parameters: {}
     work_pool:
       name: default-agent-pool
-      work_queue_name: default
       job_variables: {}
     schedules: []
