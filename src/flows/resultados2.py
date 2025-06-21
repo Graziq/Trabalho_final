@@ -358,7 +358,7 @@ def analisar_impacto_tensao_postgres(input_tensao_data, num_barras=30, table_nam
 
 ## FLOW 1: Simulação de Contingências
 
-@flow(name="Simulacao-de-Contingencia-N-1-IEEE-30-Barras", log_prints=True)
+@flow(name="simulacao-contingencia-ieee30", log_prints=True)
 def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: float = 0.94, line_loading_max: float = 120):
     """
     FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras,
@@ -494,7 +494,7 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
 
 ## FLOW 2: Análise de Impacto (Separado)
 
-@flow(name="Analise-de-Impacto-de-Tensao-IEEE-30-Barras", log_prints=True)
+@flow(name="analise-impacto-ieee30", log_prints=True)
 def analise_impacto_flow(num_barras: int = 30):
     """
     FLOW: Carrega os dados de tensão de cenários não críticos do PostgreSQL e
