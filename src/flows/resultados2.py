@@ -521,7 +521,7 @@ def analise_impacto_flow(num_barras: int = 30):
 
     print("Análise de impacto de tensão concluída.")
 
----
+
 ## Execução Principal do Script
 
 if __name__ == "__main__":
