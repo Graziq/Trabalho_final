@@ -7,7 +7,6 @@ numba==0.56.4
 scipy==1.11.1
 lxml==4.9.3
 tqdm==4.65.0
-typing_extensions~=4.9.0
 deepdiff==6.3.1
 geojson==2.5.0
 PyYAML==6.0
