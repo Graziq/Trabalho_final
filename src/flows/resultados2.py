@@ -30,7 +30,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 #teste pois estava travando (lembrar de rodar o agent antes)
 print(f"DEBUG: pandapower version in worker: {pp.__version__}")
 
----
+
 ## Funções/Tasks Auxiliares Inalteradas
 
 @task
@@ -172,7 +172,7 @@ def simular_desligamento_e_verificar_ilhamento(net_copy, linha):
 
     return net_contingencia_copy, ilhamento_detectado
 
----
+
 ## Novas Tasks para Interagir com o PostgreSQL
 
 @task
@@ -355,7 +355,7 @@ def analisar_impacto_tensao_postgres(input_tensao_data, num_barras=30, table_nam
     except Exception as e:
         print(f"Erro ao salvar dados de impacto no PostgreSQL: {e}")
 
----
+
 ## FLOW 1: Simulação de Contingências
 
 @flow(name="Simulacao-de-Contingencia-N-1-IEEE-30-Barras", log_prints=True)
@@ -491,7 +491,7 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
     # 9. Salva os dados de tensão para contingências NÃO CRÍTICAS no PostgreSQL
     salvar_tensao_nao_criticos_postgres(tensao_cenarios_nao_criticos_para_db)
 
----
+
 ## FLOW 2: Análise de Impacto (Separado)
 
 @flow(name="Analise-de-Impacto-de-Tensao-IEEE-30-Barras", log_prints=True)
