@@ -13,18 +13,6 @@ deployments:
     parameters: {}
     work_pool:
       name: default-agent-pool
-      work_queue_name: default # <--- ADICIONADO AQUI
-      job_variables: {}
-    schedules: []
-
-  - name: analise-impacto-ieee30
-    version: "1.0"
-    tags: []
-    description: "FLOW: Carrega os dados de tensao de cenarios nao criticos do PostgreSQL e realiza a analise de impacto."
-    entrypoint: src/flows/resultados2.py:analise_impacto_flow
-    parameters: {}
-    work_pool:
-      name: default-agent-pool
-      work_queue_name: default # <--- ADICIONADO AQUI
+      work_queue_name: default
       job_variables: {}
     schedules: []
