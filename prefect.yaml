@@ -2,22 +2,29 @@
 # configuration for deploying your flows. We recommend committing this file to source
 # control along with your flow code.
 
-
-
 # Generic metadata about this project
 name: Trabalho_final
 prefect-version: 2.16.4
 
-
 deployments:
-- name: simulacao-contingencia-ieee30
+- name: simulacao-contingencia-ieee30 # Nome do primeiro deployment
   version: "1.0"
   tags: []
-  description: "FLOW: Orquestra a simula\xE7\xE3o de conting\xEAncias N-1 na rede\
-    \ IEEE 30 barras,\nsalvando os resultados e os dados de tens\xE3o para posterior\
-    \ an\xE1lise de impacto."
-  entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
-  parameters: {}
+  description: "FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras, salvando os resultados e os dados de tensão para posterior análise de impacto."
+  entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow # Caminho do seu script dentro do container
+  parameters: {} # Você pode adicionar parâmetros padrão aqui se quiser, ex: {n_cenarios: 2}
+  work_pool:
+    name: default-agent-pool # Nome do seu work pool. Mantenha 'default-agent-pool' se não alterou.
+    work_queue_name: default
+    job_variables: {}
+  schedules: []
+
+- name: analise-impacto-ieee30 # Nome do segundo deployment para o flow de análise
+  version: "1.0"
+  tags: []
+  description: "FLOW: Carrega os dados de tensão de cenários não críticos do PostgreSQL e realiza a análise de impacto."
+  entrypoint: src/flows/resultados2.py:analise_impacto_flow # Caminho do seu script dentro do container
+  parameters: {} # Ex: {num_barras: 30}
   work_pool:
     name: default-agent-pool
     work_queue_name: default
