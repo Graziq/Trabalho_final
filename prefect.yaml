@@ -13,6 +13,7 @@ deployments:
     parameters: {}
     work_pool:
       name: default-agent-pool
+      work_queue_name: default # <--- ADICIONADO AQUI
       job_variables: {}
     schedules: []
 
@@ -24,5 +25,6 @@ deployments:
     parameters: {}
     work_pool:
       name: default-agent-pool
+      work_queue_name: default # <--- ADICIONADO AQUI
       job_variables: {}
     schedules: []

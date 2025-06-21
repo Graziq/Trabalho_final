@@ -1,16 +1,19 @@
-# Dockerfile (dentro de Trabalho_final/infra/)
-FROM prefecthq/prefect:2.16.4-python3.12
+# Use uma imagem base do Prefect com Python 3.10, compatível com suas libs (Numba/Pandapower)
+FROM prefecthq/prefect:2.16.4-python3.10
 
-# Instalar dependências Python
-RUN pip install psycopg2-binary SQLAlchemy pandas pandapower networkx prefect
-
-# Define o diretório de trabalho dentro do contêiner.
-# É uma boa prática que este seja o diretório onde seu código principal estará.
+# Define o diretório de trabalho dentro do contêiner
 WORKDIR /app
 
-# Copia o conteúdo da pasta 'Trabalho_final' (que é o contexto do build, definido no docker-compose)
-# para o diretório /app dentro do contêiner.
-# O '..' no 'COPY' não é mais necessário aqui porque o 'context' no docker-compose já resolve isso.
-# Apenas a pasta 'src/flows/' será copiada para /app se você quiser apenas o código do flow,
-# mas geralmente é melhor copiar todo o projeto para que importações relativas funcionem.
-COPY ../. /app
+# Copia todo o conteúdo do seu projeto (Trabalho_final) para /app dentro do contêiner.
+# O 'context: ../' no docker-compose.yml fará com que a pasta 'Trabalho_final' seja o contexto.
+# Então, copiar '.' copia tudo desse contexto.
+COPY . /app
+
+# Instalar dependências Python a partir do seu requirements.txt
+# Isso garante que as mesmas versões que você testou localmente sejam usadas no contêiner.
+# Assumimos que requirements.txt está na raiz do seu projeto (Trabalho_final)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Comando para iniciar o agente Prefect
+# Este CMD é o padrão para iniciar um agente que observa um work pool específico
+CMD ["prefect", "agent", "start", "-p", "default-agent-pool"]
