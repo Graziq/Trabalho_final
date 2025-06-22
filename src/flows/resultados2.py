@@ -1,3 +1,4 @@
+# Assuming the corrected `analise_impacto_flow`
 import pandapower as pp
 import pandapower.networks as pn
 import random
@@ -15,14 +16,19 @@ import json # Para trabalhar com o tipo JSONB no PostgreSQL
 from sqlalchemy import create_engine, text # Para conexão com o banco de dados e execução de comandos SQL
 
 
-# --- Configuração do Banco de Dados ---
-# Obtém as variáveis de ambiente definidas no docker-compose.yml
-DB_USER = os.getenv('DB_USER', 'prefect')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'prefect')
-DB_HOST = os.getenv('DB_HOST', 'localhost') # 'localhost' para testes locais fora do Docker
-DB_NAME = os.getenv('DB_NAME', 'prefect')
 
-DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:5432/{DB_NAME}"
+def get_db_url():
+    """Retorna a URL de conexão do banco de dados, adaptando para o ambiente."""
+    # Se você está executando o flow localmente para depuração, use 'localhost'.
+    # Se a task for executada por um agente no Docker, 'DB_HOST' será 'postgres'.
+    db_user = os.getenv('DB_USER', 'prefect')
+    db_password = os.getenv('DB_PASSWORD', 'prefect')
+    db_host = os.getenv('DB_HOST', 'localhost') # <<-- AQUI! Use 'localhost' como fallback padrão para scripts fora do Docker
+    db_name = os.getenv('DB_NAME', 'prefect')
+    db_port = os.getenv('DB_PORT', '5432')
+
+    url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    return url
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
@@ -177,49 +183,84 @@ def simular_desligamento_e_verificar_ilhamento(net_copy, linha):
 
 @task
 def criar_tabelas_postgres():
-    """
-    Cria as tabelas no PostgreSQL se elas não existirem.
-    """
-    engine = create_engine(DATABASE_URL)
-    with engine.connect() as connection:
-        # Tabela para resultados globais
-        connection.execute(text("""
-            CREATE TABLE IF NOT EXISTS resultados_simulacao (
-                id SERIAL PRIMARY KEY,
-                cenario INT,
-                linha_desligada INT,
-                status VARCHAR(50),
-                ilhamento BOOLEAN,
-                num_componentes_conectados INT,
-                convergencia BOOLEAN,
-                timestamp_simulacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """))
-        # Tabela para dados de tensão, usando JSONB para flexibilidade
-        connection.execute(text("""
-            CREATE TABLE IF NOT EXISTS tensao_barras_nao_criticos (
-                id SERIAL PRIMARY KEY,
-                cenario INT,
-                linha_desligada INT,
-                from_bus INT,
-                to_bus INT,
-                tensao_antes JSONB, -- Armazenará um JSON com 'bus_idx': 'vm_pu'
-                tensao_depois JSONB,
-                timestamp_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """))
-        # Tabela para análise de impacto, usando JSONB
-        connection.execute(text("""
-            CREATE TABLE IF NOT EXISTS impacto_tensao_barras (
-                id SERIAL PRIMARY KEY,
-                cenario INT,
-                linha_desligada INT,
-                impacto_por_barra JSONB, -- Armazenará um JSON com 'bus_idx': 'diferenca_tensao'
-                timestamp_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """))
-        connection.commit()
-    print("Tabelas verificadas/criadas no PostgreSQL.")
+    """Versão definitiva com todos os tratamentos de erro"""
+    import time
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.exc import OperationalError
+
+    DB_URL = get_db_url()
+    print(f"🔄 Tentando conectar em: {DB_URL.replace('prefect:prefect@', '')}")
+
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            engine = create_engine(DB_URL)
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                print("✅ Conexão bem-sucedida!")
+
+                # Criação das tabelas com verificação
+                tabelas = {
+                    'resultados_simulacao': """
+                        CREATE TABLE IF NOT EXISTS resultados_simulacao (
+                            id SERIAL PRIMARY KEY,
+                            cenario INTEGER,
+                            linha_desligada INTEGER,
+                            status TEXT,
+                            ilhamento BOOLEAN,
+                            num_componentes_conectados INTEGER,
+                            convergencia BOOLEAN,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );""",
+                    'tensao_barras_nao_criticos': """
+                        CREATE TABLE IF NOT EXISTS tensao_barras_nao_criticos (
+                            id SERIAL PRIMARY KEY,
+                            cenario INTEGER,
+                            linha_desligada INTEGER,
+                            from_bus INTEGER,
+                            to_bus INTEGER,
+                            -- Geração dinâmica das colunas vm_pu_antes_bus_X
+                            """ + ",\n".join([f"vm_pu_antes_bus_{i} NUMERIC" for i in range(30)]) + """,
+                            -- Geração dinâmica das colunas vm_pu_depois_bus_X
+                            """ + ",\n".join([f"vm_pu_depois_bus_{i} NUMERIC" for i in range(30)]) + """,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );""",
+                    'impacto_tensao_barras': """
+                        CREATE TABLE IF NOT EXISTS impacto_tensao_barras (
+                            id SERIAL PRIMARY KEY,
+                            cenario INTEGER,
+                            linha_desligada INTEGER,
+                            impacto_por_barra JSONB,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );"""
+                }
+
+                for nome, schema in tabelas.items():
+                    print(f"Criando/Verificando tabela: {nome}")
+                    conn.execute(text(schema))
+                    # Verificação pós-criação
+                    result = conn.execute(
+                        text("SELECT to_regclass(:tabela)"),
+                        {"tabela": nome}
+                    ).scalar()
+                    if not result:
+                        raise RuntimeError(f"Tabela {nome} não foi criada")
+                    print(f"✅ Tabela {nome} verificada")
+
+                conn.commit()
+                return True
+
+        except OperationalError as e:
+            wait_time = attempt * 2
+            print(f"⚠️ Tentativa {attempt}/{max_attempts} falhou. Aguardando {wait_time}s... Erro: {str(e)}")
+            time.sleep(wait_time)
+            if attempt == max_attempts:
+                print("❌ Todas as tentativas falharam. Verifique:")
+                print(f"- Serviço PostgreSQL está rodando? (docker-compose ps)")
+                print(f"- Credenciais corretas? (usuário: prefect, senha: prefect)")
+                print(f"- Permissões adequadas? (docker-compose exec postgres psql -U prefect -c '\\du')")
+            raise
+    return False
 
 @task
 def salvar_resultados_globais_postgres(resultados, table_name='resultados_simulacao'):
@@ -231,7 +272,9 @@ def salvar_resultados_globais_postgres(resultados, table_name='resultados_simula
         return
 
     df_resultados_finais = pd.DataFrame(resultados)
-    engine = create_engine(DATABASE_URL)
+
+    DB_URL = get_db_url() # <-- Chama a função auxiliar aqui também!
+    engine = create_engine(DB_URL) # <-- Cria o engine localmente para a task
 
     try:
         df_resultados_finais.to_sql(table_name, engine, if_exists='append', index=False)
@@ -247,45 +290,49 @@ def salvar_resultados_globais_postgres(resultados, table_name='resultados_simula
         print(f"Erro ao salvar resultados globais no PostgreSQL: {e}")
 
 @task
-def salvar_tensao_nao_criticos_postgres(tensao_data, table_name='tensao_barras_nao_criticos'):
+def salvar_tensao_nao_criticos_postgres(tensao_data, table_name='tensao_barras_nao_criticos', num_barras=30):
     """
-    Salva os dados de tensão para contingências NÃO CRÍTICAS no PostgreSQL.
-    Converte os dicionários de tensão em JSON para as colunas JSONB.
+    Salva os dados de tensão para contingências NÃO CRÍTICAS no PostgreSQL no formato expandido.
     """
     if not tensao_data:
         print("Nenhuma contingência não crítica foi encontrada para salvar dados de tensão no PostgreSQL.")
         return
 
-    processed_data = []
+    # Processa os dados para o formato expandido (flat)
+    processed_data_flat = []
     for row in tensao_data:
-        new_row = {
+        flat_row = {
             'cenario': row['cenario'],
             'linha_desligada': row['linha_desligada'],
             'from_bus': row['from_bus'],
-            'to_bus': row['to_bus'],
-            'tensao_antes': {},
-            'tensao_depois': {}
+            'to_bus': row['to_bus']
         }
-        # Popula os dicionários tensao_antes e tensao_depois
-        for key, value in row.items():
-            if key.startswith('vm_pu_antes_bus_'):
-                bus_idx = int(key.replace('vm_pu_antes_bus_', ''))
-                new_row['tensao_antes'][str(bus_idx)] = value
-            elif key.startswith('vm_pu_depois_bus_'):
-                bus_idx = int(key.replace('vm_pu_depois_bus_', ''))
-                new_row['tensao_depois'][str(bus_idx)] = value
-        processed_data.append(new_row)
+        
+        # 'tensao_antes' e 'tensao_depois' já são dicionários aqui (vide simulacao_contingencia_flow)
+        tensao_antes_dict = row['tensao_antes']
+        tensao_depois_dict = row['tensao_depois']
 
-    df_tensao_nao_criticos = pd.DataFrame(processed_data)
+        for i in range(num_barras): # Iterar sobre todas as possíveis barras
+            flat_row[f'vm_pu_antes_bus_{i}'] = tensao_antes_dict.get(i) # Usar .get(i) para valores numéricos
+            flat_row[f'vm_pu_depois_bus_{i}'] = tensao_depois_dict.get(i) # Usar .get(i) para valores numéricos
+        processed_data_flat.append(flat_row)
 
-    # Converte dicionários para strings JSON para serem armazenados em colunas JSONB
-    df_tensao_nao_criticos['tensao_antes'] = df_tensao_nao_criticos['tensao_antes'].apply(lambda x: json.dumps(x))
-    df_tensao_nao_criticos['tensao_depois'] = df_tensao_nao_criticos['tensao_depois'].apply(lambda x: json.dumps(x))
+    df_tensao_nao_criticos = pd.DataFrame(processed_data_flat)
 
-    engine = create_engine(DATABASE_URL)
+    # Garante que as colunas de tensão são numéricas (podem vir como object se houver NaN ou se forem strings)
+    for col in df_tensao_nao_criticos.columns:
+        if col.startswith('vm_pu_antes_bus_') or col.startswith('vm_pu_depois_bus_'):
+            df_tensao_nao_criticos[col] = pd.to_numeric(df_tensao_nao_criticos[col], errors='coerce')
+
+
+    DB_URL = get_db_url()
+    engine = create_engine(DB_URL)
+
     try:
+        # if_exists='append' vai adicionar as linhas.
+        # As colunas devem corresponder exatamente ao schema da tabela no PostgreSQL.
         df_tensao_nao_criticos.to_sql(table_name, engine, if_exists='append', index=False)
-        print(f"Dados de tensão para contingências NÃO CRÍTICAS salvos na tabela '{table_name}' do PostgreSQL.")
+        print(f"Dados de tensão para contingências NÃO CRÍTICAS salvos no formato expandido na tabela '{table_name}' do PostgreSQL.")
         run_context = get_run_context()
         if run_context:
             create_markdown_artifact(
@@ -295,66 +342,92 @@ def salvar_tensao_nao_criticos_postgres(tensao_data, table_name='tensao_barras_n
             )
     except Exception as e:
         print(f"Erro ao salvar dados de tensão no PostgreSQL: {e}")
+        # Considerar logar o DataFrame para depuração em caso de erro
+        # print(df_tensao_nao_criticos.head())
+        # print(df_tensao_nao_criticos.dtypes)
 
 @task
-def analisar_impacto_tensao_postgres(input_tensao_data, num_barras=30, table_name='impacto_tensao_barras'):
+def analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_criticos', num_barras=30, table_name_output='impacto_tensao_barras'):
     """
     Analisa o impacto do desligamento de linhas nas tensões das barras e
     salva os resultados no PostgreSQL.
     """
-    if not input_tensao_data:
-        print("Dados de tensão de entrada vazios para análise de impacto no PostgreSQL. Nenhuma análise será realizada.")
+    print(f"Iniciando análise de impacto de tensão a partir do PostgreSQL da tabela '{table_name_input}'...")
+
+    DB_URL = get_db_url()
+    engine = create_engine(DB_URL)
+
+    try:
+        # A query agora seleciona todas as colunas de tensão explicitamente
+        # Isso garante que o DataFrame retornado já venha no formato expandido
+        columns_to_select = ['cenario', 'linha_desligada', 'from_bus', 'to_bus'] + \
+                            [f'vm_pu_antes_bus_{i}' for i in range(num_barras)] + \
+                            [f'vm_pu_depois_bus_{i}' for i in range(num_barras)]
+        
+        query = f"SELECT {', '.join(columns_to_select)} FROM {table_name_input};"
+        
+        with engine.connect() as connection:
+            df_tensao = pd.read_sql(text(query), connection)
+        print(f"Dados carregados com sucesso da tabela '{table_name_input}'.")
+    except Exception as e:
+        print(f"Erro ao carregar dados de tensão do PostgreSQL para análise de impacto: {e}")
+        return
+
+    if df_tensao.empty:
+        print("DataFrame de entrada para análise de impacto está vazio. Nenhuma análise será realizada.")
         return
 
     resultados_impacto_novo_formato = []
 
-    for row in input_tensao_data:
+    for index, row in df_tensao.iterrows(): # Iterar sobre o DataFrame diretamente
         cenario_id = row['cenario']
         linha_desligada = row['linha_desligada']
 
         linha_resultado = {
             'cenario': cenario_id,
             'linha_desligada': linha_desligada,
-            'impacto_por_barra': {}
+            'impacto_por_barra': {} # Ainda usaremos JSONB para o impacto aqui, como definido na sua tabela 'impacto_tensao_barras'
         }
 
-        # Converte as strings JSON de volta para dicionários se vierem do banco de dados
-        # O .get(str(i)) foi corrigido para acessar chaves de dicionário como string
-        tensao_antes = json.loads(row['tensao_antes']) if isinstance(row['tensao_antes'], str) else row['tensao_antes']
-        tensao_depois = json.loads(row['tensao_depois']) if isinstance(row['tensao_depois'], str) else row['tensao_depois']
-
         for i in range(num_barras):
-            tensao_antes_bus = tensao_antes.get(str(i)) # <-- Correção aqui: usar str(i) para chave
-            tensao_depois_bus = tensao_depois.get(str(i)) # <-- Correção aqui: usar str(i) para chave
+            tensao_antes = row[f'vm_pu_antes_bus_{i}'] # Acessa diretamente a coluna
+            tensao_depois = row[f'vm_pu_depois_bus_{i}'] # Acessa diretamente a coluna
 
-            if pd.isna(tensao_antes_bus) or pd.isna(tensao_depois_bus):
+            if pd.isna(tensao_antes) or pd.isna(tensao_depois):
                 diferenca = np.nan
             else:
-                diferenca = abs(tensao_depois_bus - tensao_antes_bus)
+                diferenca = abs(tensao_depois - tensao_antes)
 
             linha_resultado['impacto_por_barra'][str(i)] = diferenca
 
         resultados_impacto_novo_formato.append(linha_resultado)
 
     df_impacto = pd.DataFrame(resultados_impacto_novo_formato)
-
-    # Converte o dicionário de impacto para string JSON para a coluna JSONB
+    
+    # Conversão para JSON para a coluna 'impacto_por_barra' (se a tabela for JSONB)
     df_impacto['impacto_por_barra'] = df_impacto['impacto_por_barra'].apply(lambda x: json.dumps(x))
 
-    engine = create_engine(DATABASE_URL)
+    # Reordenar colunas antes de salvar, se necessário, para corresponder ao DB
+    # (cenario, linha_desligada, impacto_por_barra, created_at)
+    cols_order = ['cenario', 'linha_desligada', 'impacto_por_barra']
+    # Adicione outras colunas se existirem na tabela 'impacto_tensao_barras', como 'created_at' se você a estiver inserindo automaticamente
+    df_impacto = df_impacto[cols_order]
+
+    DB_URL = get_db_url()
+    engine = create_engine(DB_URL)
+
     try:
-        df_impacto.to_sql(table_name, engine, if_exists='append', index=False)
-        print(f"\nAnálise de impacto concluída. Dados de impacto por barra salvos na tabela '{table_name}' do PostgreSQL.")
+        df_impacto.to_sql(table_name_output, engine, if_exists='append', index=False)
+        print(f"\nAnálise de impacto concluída. Dados de impacto por barra salvos na tabela '{table_name_output}' do PostgreSQL.")
         run_context = get_run_context()
         if run_context:
             create_markdown_artifact(
-                f"Relatório de Impacto de Tensão salvo no PostgreSQL na tabela: `{table_name}`",
+                f"Relatório de Impacto de Tensão salvo no PostgreSQL na tabela: `{table_name_output}`",
                 key="impacto-tensao-db",
                 description="Relatório do impacto de tensão nas barras no banco de dados."
             )
     except Exception as e:
         print(f"Erro ao salvar dados de impacto no PostgreSQL: {e}")
-
 
 ## FLOW 1: Simulação de Contingências
 
@@ -365,6 +438,8 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
     salvando os resultados e os dados de tensão para posterior análise de impacto no PostgreSQL.
     """
     print(f"Iniciando simulação com {n_cenarios} cenários para IEEE 30 barras...")
+    print(f"DEBUG: Prefect API URL: {os.getenv('PREFECT_API_URL')}")
+    print(f"DEBUG: DB_HOST env var for flow: {os.getenv('DB_HOST', 'fallback_flow')}")
 
     # Garante que as tabelas existem antes de começar a inserir dados
     criar_tabelas_postgres()
@@ -489,35 +564,20 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
     salvar_resultados_globais_postgres(resultados_globais)
 
     # 9. Salva os dados de tensão para contingências NÃO CRÍTICAS no PostgreSQL
-    salvar_tensao_nao_criticos_postgres(tensao_cenarios_nao_criticos_para_db)
-
+    salvar_tensao_nao_criticos_postgres(tensao_cenarios_nao_criticos_para_db, num_barras=len(net_base_result.bus.index))
 
 ## FLOW 2: Análise de Impacto (Separado)
 
 @flow(name="analise-impacto-ieee30", log_prints=True)
 def analise_impacto_flow(num_barras: int = 30):
     """
-    FLOW: Carrega os dados de tensão de cenários não críticos do PostgreSQL e
-    realiza a análise de impacto, salvando os resultados em uma nova tabela no PostgreSQL.
+    FLOW: Orquestra a análise de impacto de tensão a partir do PostgreSQL.
     """
     print(f"Iniciando análise de impacto de tensão a partir do PostgreSQL...")
 
-    engine = create_engine(DATABASE_URL)
-    try:
-        # Carrega os dados de tensao_barras_nao_criticos diretamente do PostgreSQL
-        query = "SELECT cenario, linha_desligada, from_bus, to_bus, tensao_antes, tensao_depois FROM tensao_barras_nao_criticos;"
-        with engine.connect() as connection:
-            df_tensao = pd.read_sql(query, connection)
-        print(f"Dados carregados com sucesso da tabela 'tensao_barras_nao_criticos'.")
-    except Exception as e:
-        print(f"Erro ao carregar dados de tensão do PostgreSQL para análise de impacto: {e}")
-        return
-
-    # Converte o DataFrame para uma lista de dicionários para passar para a task
-    tensao_data_for_analysis = df_tensao.to_dict(orient='records')
-
-    # Chama a task para realizar a análise de impacto, salvando diretamente no Postgres
-    analisar_impacto_tensao_postgres(tensao_data_for_analysis, num_barras=num_barras)
+    # A task analisar_impacto_tensao_postgres agora é responsável por carregar os dados
+    # e salvar o resultado, então não há necessidade de um segundo pd.read_sql aqui.
+    analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_criticos', num_barras=num_barras)
 
     print("Análise de impacto de tensão concluída.")
 
@@ -525,14 +585,21 @@ def analise_impacto_flow(num_barras: int = 30):
 ## Execução Principal do Script
 
 if __name__ == "__main__":
-    n_cenarios_simulacao = 2 # Definir o número de cenários para a simulação
+    # Test this connection before deployment
+    DB_URL = get_db_url() # Obtenha a URL dinamicamente para o teste local
+    engine = create_engine(DB_URL)
+    try:
+        with engine.connect() as conn:
+            print("✅ PostgreSQL connection successful!")
+    except Exception as e:
+        print(f"❌ PostgreSQL connection failed: {e}")
+    
+    n_cenarios_simulacao = 2
 
     print(f"--- Executando o Flow de Simulação de Contingências ---")
-    # Para rodar o flow de simulação (que agora salva no PostgreSQL)
     simulacao_contingencia_flow(n_cenarios=n_cenarios_simulacao)
 
     print(f"\n--- Executando o Flow de Análise de Impacto ---")
-    # Para rodar o flow de análise de impacto, que agora lê e escreve no PostgreSQL
-    analise_impacto_flow(num_barras=30) # Corrigido: remover input_csv_filename
+    analise_impacto_flow(num_barras=30)
 
     print("\nProcesso completo (simulação e análise) concluído e dados salvos no PostgreSQL.")

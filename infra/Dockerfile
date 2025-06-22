@@ -1,19 +1,14 @@
-# Use uma imagem base do Prefect com Python 3.10, compatível com suas libs (Numba/Pandapower)
+# Use uma única imagem base (Python 3.10 ou 3.12 - escolha uma)
 FROM prefecthq/prefect:2.16.4-python3.10
 
-# Define o diretório de trabalho dentro do contêiner
+# Define o diretório de trabalho
 WORKDIR /app
 
-# Copia todo o conteúdo do seu projeto (Trabalho_final) para /app dentro do contêiner.
-# O 'context: ../' no docker-compose.yml fará com que a pasta 'Trabalho_final' seja o contexto.
-# Então, copiar '.' copia tudo desse contexto.
+# Copia o conteúdo do projeto
 COPY . /app
 
-# Instalar dependências Python a partir do seu requirements.txt
-# Isso garante que as mesmas versões que você testou localmente sejam usadas no contêiner.
-# Assumimos que requirements.txt está na raiz do seu projeto (Trabalho_final)
-RUN pip install --no-cache-dir -r requirements.txt
+# Instala todas as dependências de uma vez (incluindo psycopg2)
+RUN pip install --no-cache-dir -r requirements.txt prefect-docker psycopg2-binary
 
-# Comando para iniciar o agente Prefect
-# Este CMD é o padrão para iniciar um agente que observa um work pool específico
+# Comando para iniciar o agente
 CMD ["prefect", "agent", "start", "-p", "default-agent-pool"]
