@@ -1,4 +1,3 @@
-# docker-compose.yml (dentro de Trabalho_final/infra/)
 services:
   postgres:
     image: postgres:13.11
@@ -6,7 +5,7 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: prefect
-      POSTGRES_PASSWORD: prefect  # Senha explícita
+      POSTGRES_PASSWORD: prefect
       POSTGRES_DB: prefect
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
@@ -20,11 +19,8 @@ services:
       retries: 10
 
   prefect-server:
-    image: prefecthq/prefect:2.16.4-python3.12
+    image: prefecthq/prefect:2.16.4-python3.10
     command: prefect server start --host 0.0.0.0 --port 4200
-    environment:
-      - PREFECT_HOME=/root/.prefect
-      - PREFECT_API_URL=http://prefect-server:4200/api
     ports:
       - "4200:4200"
     volumes:
@@ -36,17 +32,17 @@ services:
 
   prefect-agent:
     build:
-      context: ..  # <-- MUITO IMPORTANTE: Define o contexto de build para a pasta 'Trabalho_final/'
-      dockerfile: ./infra/Dockerfile # <-- Caminho relativo para o Dockerfile a partir do contexto
+      context: ..
+      dockerfile: ./infra/Dockerfile
     command: prefect agent start --pool default-agent-pool
     environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api  # 🔥 Faltava isso!
       - DB_USER=prefect
       - DB_PASSWORD=prefect
       - DB_HOST=postgres
-      - DB_PORT=5432  # Adicionado
+      - DB_PORT=5432
       - DB_NAME=prefect
     volumes:
-      # Monta a pasta 'Trabalho_final/' (referenciada por '..') como '/app' dentro do contêiner.
       - ../:/app
     depends_on:
       - prefect-server
