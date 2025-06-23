@@ -1,0 +1,21 @@
+name: Trabalho_final
+prefect-version: 2.16.4
+
+deployments:
+  - name: simulacao-contingencia-ieee30
+    version: '1.0'
+    description: 'FLOW: Orquestra a simulacao de contingencias N-1 na rede IEEE 30 barras'
+    entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
+    parameters: {}
+    work_pool:
+      name: default-agent-pool
+      work_queue_name: default
+      job_variables:
+        image: prefecthq/prefect:2-python3.10
+        env:
+          PREFECT_API_URL: http://prefect-server:4200/api
+          DATABASE_HOST: postgres
+          DATABASE_PORT: 5432
+          DATABASE_USER: prefect
+          DATABASE_PASSWORD: prefect
+          DATABASE_DBNAME: prefect

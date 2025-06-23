@@ -1,0 +1,65 @@
+###
+### A complete description of a Prefect Deployment for flow 'simulacao-contingencia-ieee30'
+###
+name: simulacao-contingencia-ieee30
+description: "FLOW: Orquestra a simula\xE7\xE3o de conting\xEAncias N-1 na rede IEEE\
+  \ 30 barras,\nsalvando os resultados e os dados de tens\xE3o para posterior an\xE1\
+  lise de impacto no PostgreSQL."
+version: 7ed681e542da891ea4eae6f639ba9d86
+# The work queue that will handle this deployment's runs
+work_queue_name: default
+work_pool_name: default-agent-pool
+tags: []
+parameters: {}
+schedule: null
+schedules: []
+is_schedule_active: null
+infra_overrides: {}
+infrastructure:
+  type: process
+  env: {}
+  labels: {}
+  name: null
+  command: null
+  stream_output: true
+  working_dir: null
+  block_type_slug: process
+  _block_type_slug: process
+
+###
+### DO NOT EDIT BELOW THIS LINE
+###
+flow_name: simulacao-contingencia-ieee30
+manifest_path: null
+storage: null
+path: C:\Users\graz1\UFF\mestrado\Trabalho_final
+entrypoint: src\flows\resultados2.py:simulacao_contingencia_flow
+parameter_openapi_schema:
+  title: Parameters
+  type: object
+  properties:
+    n_cenarios:
+      title: n_cenarios
+      default: 2
+      position: 0
+      type: integer
+    vmax:
+      title: vmax
+      default: 1.093
+      position: 1
+      type: number
+    vmin:
+      title: vmin
+      default: 0.94
+      position: 2
+      type: number
+    line_loading_max:
+      title: line_loading_max
+      default: 120
+      position: 3
+      type: number
+  required: null
+  definitions: null
+timestamp: '2025-06-22T03:15:26.984837+00:00'
+triggers: []
+enforce_parameter_schema: null
