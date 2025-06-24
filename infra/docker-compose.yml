@@ -36,7 +36,7 @@ services:
       dockerfile: ./infra/Dockerfile
     command: prefect agent start --pool default-agent-pool
     environment:
-      - PREFECT_API_URL=http://prefect-server:4200/api  # 🔥 Faltava isso!
+      - PREFECT_API_URL=http://prefect-server:4200/api
       - DB_USER=prefect
       - DB_PASSWORD=prefect
       - DB_HOST=postgres

@@ -1,0 +1,17 @@
+name: meu-projeto
+prefect-version: 2.16.4
+
+deployments:
+- name: resultados-deploy
+  version: null
+  tags: []
+  description: null
+  entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
+  work_pool:
+    name: artigo-pool
+    work_queue_name: null
+    job_variables: {}
+  parameters: {}
+  schedule:
+    interval: 60
+    active: true

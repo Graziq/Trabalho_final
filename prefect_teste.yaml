@@ -1,0 +1,14 @@
+name: teste-deploy
+prefect-version: 2.16.4
+
+deployments:
+  - name: teste-simples-deploy
+    entrypoint: C:/Users/graz1/UFF/mestrado/Trabalho_final/src/flows/teste_simples_flow.py:meu_flow_de_teste
+    parameters: {}
+    work_pool:
+      name: default-agent-pool
+      work_queue_name: default
+      job_variables: {}
+    version: "1.0"
+    description: >
+      Um flow de teste simples para depuração

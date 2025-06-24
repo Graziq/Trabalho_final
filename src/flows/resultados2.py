@@ -431,7 +431,7 @@ def analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_critico
 
 ## FLOW 1: Simulação de Contingências
 
-@flow(name="simulacao-contingencia-ieee30", log_prints=True)
+@flow(name="simulacao-contingencia-flow")
 def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: float = 0.94, line_loading_max: float = 120):
     """
     FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras,
@@ -583,6 +583,9 @@ def analise_impacto_flow(num_barras: int = 30):
 
 
 ## Execução Principal do Script
+
+
+n_cenarios_simulacao = 3
 
 if __name__ == "__main__":
     # Test this connection before deployment
