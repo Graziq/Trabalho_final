@@ -1,60 +1,69 @@
-name: Deploy Prefect Flows # Nome do workflow, visível no GitHub Actions
+name: Check Prefect Flow Quality
 
 on:
   push: # Este workflow será acionado quando houver um push
     branches:
-      - main # Apenas na branch 'main'
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  deploy: # Definição do job 'deploy'
-    runs-on: windows-latest # O job será executado em um runner Windows (latest version)
+  build_and_test:
+    runs-on: windows-latest # O job será executado em um runner Windows
 
-    steps: # Sequência de passos a serem executados
-      - name: 🔁 Checkout do código # Nome do passo
-        uses: actions/checkout@v3 # Utiliza a action oficial para fazer o checkout do seu repositório
+    steps: # Sequência de passos
+      - name: 🔁 Checkout do código # Passo para baixar seu código
+        uses: actions/checkout@v3
 
-      - name: 🐍 Instalar Python 3.10 # Nome do passo
-        uses: actions/setup-python@v4 # Utiliza a action oficial para configurar o Python
+      - name: 🐍 Instalar Python 3.10 # Passo para configurar o ambiente Python
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.10" # Especifica a versão do Python a ser instalada
+          python-version: "3.10"
 
-      - name: 📦 Instalar dependências # Nome do passo
-        # O comando 'run' executa comandos de shell
+      - name: 📦 Instalar dependências # Instala as bibliotecas Python necessárias
         run: |
-          python -m pip install -U pip # Atualiza o pip para a versão mais recente
-          python -m pip install -r requirements.txt # Instala as dependências listadas no requirements.txt
-          python -m pip install "prefect==2.16.4" # Instala uma versão específica do Prefect
+          python -m pip install -U pip
+          python -m pip install -r requirements.txt
+          python -m pip install "prefect==2.16.4"
+          # Instale ferramentas de linting e teste, se ainda não estiverem no requirements.txt
+          python -m pip install flake8 pytest # Exemplo: Flake8 para linting, Pytest para testes
           
           # Configura PYTHONPATH para Windows (PowerShell)
           # Isso é crucial para que o Prefect encontre os módulos dentro de 'src'
-          # Adiciona o diretório 'src' ao PYTHONPATH, garantindo que módulos Python dentro dele sejam encontrados.
           $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
-        shell: powershell # Define o shell para este passo como PowerShell
+        shell: powershell
 
-      - name: 🔗 Configurar conexão com Prefect Server remoto # Nome do passo
+      - name: 🔎 Rodar Linting (Flake8)
+        # Este passo garante que seu código siga as boas práticas e padrões de estilo.
         run: |
-          # Define a URL da API do seu Prefect Server usando um secret do GitHub
-          # O secret `PREFECT_SERVER_URL` deve ser configurado nas configurações do seu repositório no GitHub.
-          # Isso garante que a URL do servidor Prefect não seja exposta no seu código.
-          prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
-          Write-Host "URL da API do Prefect configurada." # Exibe uma mensagem no log do GitHub Actions
-          prefect profile ls # Opcional: Para verificar o perfil ativo do Prefect (útil para depuração)
-        shell: powershell # Define o shell para este passo como PowerShell
+          # Altere o caminho 'src' se seus arquivos Python estiverem em outro lugar
+          flake8 src
+        shell: powershell
+        continue-on-error: true # Permite que o workflow continue mesmo se o linting encontrar avisos/erros
 
-      - name: 🚀 Deploy do Flow com retry # Nome do passo
-        # **CORREÇÃO AQUI:** Sintaxe do loop for para PowerShell
+      - name: 🏃 Validar e Rodar Flow Localmente (Ephemeral) # Simula a execução do flow
+        # Este passo tenta carregar e rodar seu flow em um "Prefect Server" efêmero (local e temporário).
+        # Isso verifica se o flow pode ser inicializado e se suas tarefas básicas funcionam.
+        # Ele não se conecta a um servidor Prefect persistente.
         run: |
-          # Loop for em PowerShell: para tentar o deploy 5 vezes
-          # Se o deploy for bem-sucedido, o loop pode ser quebrado para evitar retries desnecessários.
-          for ($i = 1; $i -le 5; $i++) {
-            Write-Host "Tentativa $i de 5 para deploy do flow..."
-            # Execute o comando de deploy do Prefect.
-            # Certifique-se de que 'simulacao-e-visualizacao-orchestrator-deployment'
-            # aponta para um arquivo de configuração `prefect.yaml` ou similar
-            # que está acessível no diretório de trabalho.
-            prefect deploy -n simulacao-e-visualizacao-orchestrator-deployment
-            
-            # Adiciona uma pausa entre as tentativas (opcional, mas recomendado para retries)
-            Start-Sleep -Seconds 5 # Pausa por 5 segundos
+          Write-Host "Tentando rodar o flow Prefect localmente para validação..."
+          # Prefect orion start (executa um servidor efêmero)
+          # --ephemeral para garantir que é temporário e não interfere com configurações existentes
+          # & para rodar em background e permitir o próximo comando
+          Start-Process -FilePath "prefect" -ArgumentList "orion start --ephemeral" -NoNewWindow
+          
+          # Dê um tempo para o Orion iniciar
+          Start-Sleep -Seconds 10
+          
+          # Tenta rodar o flow. Substitua o entrypoint pelo seu flow real.
+          # O comando 'prefect run' executa um flow localmente (sem implantar).
+          prefect run src/flows/orchestrator_flow.py:simulacao_e_visualizacao_orchestrator
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Execução local do flow bem-sucedida!"
+          } else {
+            throw "A execução local do flow falhou."
           }
-        shell: powershell # Define o shell para este passo como PowerShell
+        shell: powershell
+
