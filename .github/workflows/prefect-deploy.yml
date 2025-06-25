@@ -1,15 +1,15 @@
-name: Check Prefect Flow Quality
+name: Check Prefect Flow Quality # Novo nome para refletir o objetivo
 
 on:
   push: # Este workflow será acionado quando houver um push
     branches:
-      - main
-  pull_request:
+      - main # Apenas na branch 'main'
+  pull_request: # Também pode rodar em Pull Requests para garantir a qualidade antes do merge
     branches:
       - main
 
 jobs:
-  build_and_test:
+  build_and_test: # Nome do job
     runs-on: windows-latest # O job será executado em um runner Windows
 
     steps: # Sequência de passos
@@ -34,7 +34,7 @@ jobs:
           $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
         shell: powershell
 
-      - name: 🔎 Rodar Linting (Flake8)
+      - name: 🔎 Rodar Linting (Flake8) # Passo opcional: Verifica padrões de código
         # Este passo garante que seu código siga as boas práticas e padrões de estilo.
         run: |
           # Altere o caminho 'src' se seus arquivos Python estiverem em outro lugar
@@ -42,28 +42,36 @@ jobs:
         shell: powershell
         continue-on-error: true # Permite que o workflow continue mesmo se o linting encontrar avisos/erros
 
-      - name: 🏃 Validar e Rodar Flow Localmente (Ephemeral) # Simula a execução do flow
-        # Este passo tenta carregar e rodar seu flow em um "Prefect Server" efêmero (local e temporário).
-        # Isso verifica se o flow pode ser inicializado e se suas tarefas básicas funcionam.
-        # Ele não se conecta a um servidor Prefect persistente.
+      - name: 🧪 Rodar Testes Unitários/Integração # Passo opcional: Executa seus testes
+        # Se você tem um diretório 'tests' com seus arquivos de teste, este passo os executa.
+        # Ex: pytest tests/
         run: |
-          Write-Host "Tentando rodar o flow Prefect localmente para validação..."
-          # Prefect orion start (executa um servidor efêmero)
-          # --ephemeral para garantir que é temporário e não interfere com configurações existentes
-          # & para rodar em background e permitir o próximo comando
-          Start-Process -FilePath "prefect" -ArgumentList "orion start --ephemeral" -NoNewWindow
-          
-          # Dê um tempo para o Orion iniciar
-          Start-Sleep -Seconds 10
-          
-          # Tenta rodar o flow. Substitua o entrypoint pelo seu flow real.
-          # O comando 'prefect run' executa um flow localmente (sem implantar).
-          prefect run src/flows/orchestrator_flow.py:simulacao_e_visualizacao_orchestrator
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Execução local do flow bem-sucedida!"
-          } else {
-            throw "A execução local do flow falhou."
-          }
+          # Substitua 'your_test_directory/' pelo caminho real dos seus testes
+          # Se você não tem testes, pode remover este passo.
+          # pytest your_test_directory/ # Exemplo de comando pytest
+          Write-Host "Nenhum teste unitário configurado neste exemplo. Adicione seus comandos de teste aqui."
         shell: powershell
 
+      - name: 🏃 Validar e Rodar Flow Localmente (Ephemeral) # Simula a execução do flow
+        # Este passo tenta carregar e rodar seu flow usando um servidor Prefect efêmero (local e temporário).
+        # O comando 'prefect run' automaticamente inicia um servidor efêmero, executa o flow
+        # e o encerra, sem a necessidade de um comando 'orion start' separado.
+        run: |
+          Write-Host "Tentando rodar o flow Prefect localmente para validação (modo efêmero)..."
+          
+          # Tenta rodar o flow.
+          # Usamos 'python -m prefect run' para garantir que a versão correta do Prefect seja usada.
+          # O nome do flow e o caminho devem estar corretos.
+          # O parâmetro '--ephemeral' garante que um servidor temporário é usado e encerrado.
+          python -m prefect run src/flows/orchestrator_flow.py:simulacao_e_visualizacao_orchestrator --ephemeral
+          
+          # Captura o código de saída do comando 'prefect run'.
+          $runExitCode = $LASTEXITCODE
+          
+          if ($runExitCode -eq 0) {
+            Write-Host "Execução local do flow bem-sucedida!"
+          } else {
+            # Se o flow não executou com sucesso, levanta um erro no workflow.
+            throw "A execução local do flow falhou com código de saída: $runExitCode"
+          }
+        shell: powershell
