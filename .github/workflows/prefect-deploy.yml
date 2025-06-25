@@ -3,49 +3,46 @@ name: Deploy Prefect Flows
 on:
   push:
     branches:
-      - main # O workflow será executado sempre que houver um push para a branch 'main'
+      - main
 
 jobs:
   deploy:
-    runs-on: windows-latest # Mantém Windows-latest conforme sua configuração de ambiente
+    runs-on: windows-latest
 
     steps:
       - name: 🔁 Checkout do código
-        uses: actions/checkout@v3 # Baixa o código do seu repositório
+        uses: actions/checkout@v3
 
-      - name: 🐍 Instalar Python 3.12.5
-        uses: actions/setup-python@v4 # Configura o ambiente Python
+      - name: 🐍 Instalar Python 3.10
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.12.5"
+          python-version: "3.10"
 
       - name: 📦 Instalar dependências
         run: |
-          python -m pip install -U pip # Atualiza o pip
-          # Instala todas as dependências do seu projeto listadas no 'requirements.txt'
-          # É crucial que todos os pacotes (pandapower, pandas, prefect, etc.) estejam aqui.
+          python -m pip install -U pip
+          # Garanta que todas as dependências do seu projeto (pandapower, pandas, etc.)
+          # estejam listadas no seu 'requirements.txt' na raiz do seu repositório.
+          # O 'griffe' já deve estar aqui.
           python -m pip install -r requirements.txt
           python -m pip install "prefect==2.16.4" # Garante a versão específica do Prefect
           
-          # Configura PYTHONPATH para Windows (PowerShell) para que 'src' seja reconhecido como um pacote
+          # Configura PYTHONPATH para Windows (PowerShell)
           $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
-        shell: powershell # Define o shell para PowerShell no Windows
+        shell: powershell
 
       - name: 🔗 Configurar conexão com Prefect Server remoto
         run: |
-          # Define a URL da API do seu Prefect Server usando um secret do GitHub
-          # Certifique-se de que ${{ secrets.PREFECT_SERVER_URL }} esteja configurado no seu repositório.
           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
           Write-Host "URL da API do Prefect configurada."
-          prefect profile ls # Opcional: Para verificar o perfil ativo e depuração
+          prefect profile ls # Opcional: Para verificar o perfil ativo
         shell: powershell
 
       - name: 🚀 Deploy dos Flows
         run: |
-          $max_retries = 5 # Número máximo de tentativas de deploy
-          $retry_delay_seconds = 5 # Atraso entre as tentativas
+          $max_retries = 5
+          $retry_delay_seconds = 5
           
-          # Lista dos flows e suas deployments a serem atualizadas
-          # Ajuste os nomes de deployment e os caminhos dos arquivos conforme necessário
           $deployments_to_update = @(
               @{ Name = "simulacao-e-visualizacao-orchestrator-deployment"; Path = "src/flows/orchestrator_flow.py" },
               @{ Name = "simulacao-contingencia-flow/deploy-flow"; Path = "src/flows/resultados2.py" }
@@ -60,8 +57,6 @@ jobs:
               $attempt++
               Write-Host "Tentativa $($attempt) de $($max_retries) para o deploy de $($deployment.Name)..."
               
-              # Executa o deploy do flow específico
-              # O parâmetro --path indica onde o Prefect deve procurar pelo flow
               prefect deploy --name "$($deployment.Name)" --path "$($deployment.Path)"
               
               if ($LASTEXITCODE -eq 0) {
@@ -75,7 +70,7 @@ jobs:
 
             if (-not $success) {
               Write-Error "O deploy de $($deployment.Name) falhou após $($max_retries) tentativas."
-              exit 1 # Força a falha do workflow no GitHub Actions
+              exit 1 # Força a falha do passo no GitHub Actions
             }
           }
         shell: powershell
