@@ -5,8 +5,8 @@ prefect-version: 2.16.4
 deployments:
 - name: deploy-flow
   version: '1.0'
-  description: "FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras,\n\
-    salvando os resultados e os dados de tensão para posterior análise de impacto."
+  description: "FLOW: Orquestra a simulaï¿½ï¿½o de contingï¿½ncias N-1 na rede IEEE 30 barras,\n\
+    salvando os resultados e os dados de tensï¿½o para posterior anï¿½lise de impacto."
   entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
   parameters: {}
   work_pool:
@@ -25,8 +25,8 @@ deployments:
 - name: simulacao-e-visualizacao-orchestrator-deployment
   version:
   tags: []
-  description: "FLOW: Orquestra a simulação de contingências e, em seguida,\nlança
-    a aplicação de visualização Dash."
+  description: "FLOW: Orquestra a simulacao de contingencias e, em seguida,\nlanca
+    a aplicacao de visualizacao Dash."
   entrypoint: 
     src\flows\orchestrator_flow.py:simulacao_e_visualizacao_orchestrator
   parameters: {}

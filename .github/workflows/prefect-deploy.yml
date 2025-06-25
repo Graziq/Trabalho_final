@@ -1,72 +1,81 @@
-# .github/workflows/prefect-deploy.yml
 name: Deploy Prefect Flows
 
 on:
   push:
     branches:
-      - main
+      - main # O workflow será executado sempre que houver um push para a branch 'main'
 
 jobs:
   deploy:
-    runs-on: windows-latest # Mantém Windows-latest conforme sua configuração
+    runs-on: windows-latest # Mantém Windows-latest conforme sua configuração de ambiente
 
     steps:
       - name: 🔁 Checkout do código
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Baixa o código do seu repositório
 
       - name: 🐍 Instalar Python 3.12.5
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4 # Configura o ambiente Python
         with:
           python-version: "3.12.5"
 
       - name: 📦 Instalar dependências
         run: |
-          python -m pip install -U pip
-          # Garanta que todas as dependências do seu projeto (pandapower, pandas, etc.)
-          # estejam listadas no seu 'requirements.txt' na raiz do seu repositório.
-          # Isso é a melhor prática para garantir que o ambiente no GitHub Actions
-          # tenha tudo o que seus flows precisam.
+          python -m pip install -U pip # Atualiza o pip
+          # Instala todas as dependências do seu projeto listadas no 'requirements.txt'
+          # É crucial que todos os pacotes (pandapower, pandas, prefect, etc.) estejam aqui.
           python -m pip install -r requirements.txt
-          python -m pip install "prefect==2.16.4"
+          python -m pip install "prefect==2.16.4" # Garante a versão específica do Prefect
           
-          # Configura PYTHONPATH para Windows (PowerShell)
+          # Configura PYTHONPATH para Windows (PowerShell) para que 'src' seja reconhecido como um pacote
           $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
-        shell: powershell
+        shell: powershell # Define o shell para PowerShell no Windows
 
       - name: 🔗 Configurar conexão com Prefect Server remoto
         run: |
-          # Use o secret para a URL do seu Prefect Server
+          # Define a URL da API do seu Prefect Server usando um secret do GitHub
+          # Certifique-se de que ${{ secrets.PREFECT_SERVER_URL }} esteja configurado no seu repositório.
           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
           Write-Host "URL da API do Prefect configurada."
-          prefect profile ls # Opcional: Para verificar o perfil ativo
+          prefect profile ls # Opcional: Para verificar o perfil ativo e depuração
         shell: powershell
 
-      - name: 🚀 Deploy dos Flows com retry usando prefect.yaml
+      - name: 🚀 Deploy dos Flows
         run: |
-          $max_retries = 5
-          $retry_delay_seconds = 5
-          $attempt = 0
-          $success = $false
+          $max_retries = 5 # Número máximo de tentativas de deploy
+          $retry_delay_seconds = 5 # Atraso entre as tentativas
+          
+          # Lista dos flows e suas deployments a serem atualizadas
+          # Ajuste os nomes de deployment e os caminhos dos arquivos conforme necessário
+          $deployments_to_update = @(
+              @{ Name = "simulacao-e-visualizacao-orchestrator-deployment"; Path = "src/flows/orchestrator_flow.py" },
+              @{ Name = "simulacao-contingencia-flow/deploy-flow"; Path = "src/flows/resultados2.py" }
+          )
 
-          while ($attempt -lt $max_retries -and -not $success) {
-            $attempt++
-            Write-Host "Tentativa $($attempt) de $($max_retries) para o deploy dos Flows via prefect.yaml..."
-            
-            # Executa o deploy de todos os flows definidos no prefect.yaml
-            # Certifique-se que o prefect.yaml está na raiz do seu repositório.
-            prefect deploy -f prefect.yaml
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "Deploy de todos os Flows realizado com sucesso via prefect.yaml!"
-              $success = $true
-            } else {
-              Write-Host "Deploy dos Flows falhou. Aguardando $($retry_delay_seconds) segundos antes de tentar novamente..."
-              Start-Sleep -Seconds $retry_delay_seconds
+          foreach ($deployment in $deployments_to_update) {
+            $attempt = 0
+            $success = $false
+            Write-Host "Iniciando deploy para $($deployment.Name) a partir de $($deployment.Path)..."
+
+            while ($attempt -lt $max_retries -and -not $success) {
+              $attempt++
+              Write-Host "Tentativa $($attempt) de $($max_retries) para o deploy de $($deployment.Name)..."
+              
+              # Executa o deploy do flow específico
+              # O parâmetro --path indica onde o Prefect deve procurar pelo flow
+              prefect deploy --name "$($deployment.Name)" --path "$($deployment.Path)"
+              
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ Deploy de $($deployment.Name) realizado com sucesso!"
+                $success = $true
+              } else {
+                Write-Host "❌ Deploy de $($deployment.Name) falhou. Aguardando $($retry_delay_seconds) segundos antes de tentar novamente..."
+                Start-Sleep -Seconds $retry_delay_seconds
+              }
             }
-          }
 
-          if (-not $success) {
-            Write-Error "O deploy dos Flows falhou após $($max_retries) tentativas."
-            exit 1 # Força a falha do passo no GitHub Actions
+            if (-not $success) {
+              Write-Error "O deploy de $($deployment.Name) falhou após $($max_retries) tentativas."
+              exit 1 # Força a falha do workflow no GitHub Actions
+            }
           }
         shell: powershell
