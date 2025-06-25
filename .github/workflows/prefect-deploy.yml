@@ -77,7 +77,8 @@ jobs:
 
             if (-not $success) {
               Write-Error "O deploy da deployment $($deployment_name) falhou após $($max_retries) tentativas."
-              exit 1 # Força a falha do passo no GitHub Actions
+              exit 1 # Força a falha do passo no GitHub Actios
             }
           }
+
         shell: powershell
