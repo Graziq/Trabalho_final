@@ -37,46 +37,9 @@ jobs:
           prefect profile ls # Opcional: Para verificar o perfil ativo
         shell: powershell
 
-      - name: 🚀 Deploy dos Flows (Usando -n, conforme sua indicação)
+      - name: 🚀 Deploy do Flow com retry
         run: |
-          $max_retries = 5
-          $retry_delay_seconds = 5
-          
-          # Lista dos nomes das deployments a serem atualizadas.
-          # A sintaxe 'prefect deploy -n <nome_da_deployment>' implica que o Prefect
-          # conseguirá encontrar o flow correspondente no ambiente atual (diretórios, PYTHONPATH).
-          $deployments_to_update = @(
-              "simulacao-e-visualizacao-orchestrator-deployment"
-          )
-
-          foreach ($deployment_name in $deployments_to_update) {
-            $attempt = 0
-            $success = $false
-            Write-Host "Iniciando deploy para a deployment: $($deployment_name)..."
-
-            while ($attempt -lt $max_retries -and -not $success) {
-              $attempt++
-              Write-Host "Tentativa $($attempt) de $($max_retries) para o deploy de $($deployment_name)..."
-              
-              # Executa o deploy usando a sintaxe -n
-              # Este comando atualizará a deployment existente com o código mais recente
-              # presumindo que o Prefect possa encontrar o flow no PYTHONPATH configurado.
-              prefect deploy -n "$($deployment_name)"
-              
-              if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Deploy de $($deployment_name) realizado com sucesso!"
-                $success = $true
-              } else {
-                Write-Host "❌ Deploy de $($deployment_name) falhou. Aguardando $($retry_delay_seconds) segundos antes de tentar novamente..."
-                Write-Host "Erro detalhado (código de saída): $LASTEXITCODE"
-                Start-Sleep -Seconds $retry_delay_seconds
-              }
-            }
-
-            if (-not $success) {
-              Write-Error "O deploy da deployment $($deployment_name) falhou após $($max_retries) tentativas."
-              exit 1 # Força a falha do passo no GitHub Actios
-            }
-          }
-
+          for i in {1..5}; do
+            prefect deploy -n simulacao-e-visualizacao-orchestrator-deployment && break || sleep 5
+          done
         shell: powershell
