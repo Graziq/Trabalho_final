@@ -12,18 +12,16 @@ from prefect.context import get_run_context
 import io
 import sys
 import os
-import json # Para trabalhar com o tipo JSONB no PostgreSQL
+import json
 from sqlalchemy import create_engine, text # Para conexão com o banco de dados e execução de comandos SQL
 
 
 
 def get_db_url():
     """Retorna a URL de conexão do banco de dados, adaptando para o ambiente."""
-    # Se você está executando o flow localmente para depuração, use 'localhost'.
-    # Se a task for executada por um agente no Docker, 'DB_HOST' será 'postgres'.
     db_user = os.getenv('DB_USER', 'prefect')
     db_password = os.getenv('DB_PASSWORD', 'prefect')
-    db_host = os.getenv('DB_HOST', 'localhost') # <<-- AQUI! Use 'localhost' como fallback padrão para scripts fora do Docker
+    db_host = os.getenv('DB_HOST', 'localhost')
     db_name = os.getenv('DB_NAME', 'prefect')
     db_port = os.getenv('DB_PORT', '5432')
 
@@ -37,7 +35,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 print(f"DEBUG: pandapower version in worker: {pp.__version__}")
 
 
-## Funções/Tasks Auxiliares Inalteradas
+
 
 @task
 def criar_rede_ieee30_slack_bar():
@@ -329,8 +327,6 @@ def salvar_tensao_nao_criticos_postgres(tensao_data, table_name='tensao_barras_n
     engine = create_engine(DB_URL)
 
     try:
-        # if_exists='append' vai adicionar as linhas.
-        # As colunas devem corresponder exatamente ao schema da tabela no PostgreSQL.
         df_tensao_nao_criticos.to_sql(table_name, engine, if_exists='append', index=False)
         print(f"Dados de tensão para contingências NÃO CRÍTICAS salvos no formato expandido na tabela '{table_name}' do PostgreSQL.")
         run_context = get_run_context()
@@ -358,7 +354,7 @@ def analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_critico
     engine = create_engine(DB_URL)
 
     try:
-        # A query agora seleciona todas as colunas de tensão explicitamente
+        # A query seleciona todas as colunas de tensão explicitamente
         # Isso garante que o DataFrame retornado já venha no formato expandido
         columns_to_select = ['cenario', 'linha_desligada', 'from_bus', 'to_bus'] + \
                             [f'vm_pu_antes_bus_{i}' for i in range(num_barras)] + \
@@ -386,7 +382,7 @@ def analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_critico
         linha_resultado = {
             'cenario': cenario_id,
             'linha_desligada': linha_desligada,
-            'impacto_por_barra': {} # Ainda usaremos JSONB para o impacto aqui, como definido na sua tabela 'impacto_tensao_barras'
+            'impacto_por_barra': {}
         }
 
         for i in range(num_barras):
@@ -404,13 +400,12 @@ def analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_critico
 
     df_impacto = pd.DataFrame(resultados_impacto_novo_formato)
     
-    # Conversão para JSON para a coluna 'impacto_por_barra' (se a tabela for JSONB)
+    # Conversão para JSON para a coluna 'impacto_por_barra'
     df_impacto['impacto_por_barra'] = df_impacto['impacto_por_barra'].apply(lambda x: json.dumps(x))
 
     # Reordenar colunas antes de salvar, se necessário, para corresponder ao DB
     # (cenario, linha_desligada, impacto_por_barra, created_at)
     cols_order = ['cenario', 'linha_desligada', 'impacto_por_barra']
-    # Adicione outras colunas se existirem na tabela 'impacto_tensao_barras', como 'created_at' se você a estiver inserindo automaticamente
     df_impacto = df_impacto[cols_order]
 
     DB_URL = get_db_url()
@@ -575,8 +570,8 @@ def analise_impacto_flow(num_barras: int = 30):
     """
     print(f"Iniciando análise de impacto de tensão a partir do PostgreSQL...")
 
-    # A task analisar_impacto_tensao_postgres agora é responsável por carregar os dados
-    # e salvar o resultado, então não há necessidade de um segundo pd.read_sql aqui.
+    # A task analisar_impacto_tensao_postgres é responsável por carregar os dados
+    # e salvar o resultado.
     analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_criticos', num_barras=num_barras)
 
     print("Análise de impacto de tensão concluída.")
@@ -588,7 +583,6 @@ def analise_impacto_flow(num_barras: int = 30):
 n_cenarios_simulacao = 3
 
 if __name__ == "__main__":
-    # Test this connection before deployment
     DB_URL = get_db_url() # Obtenha a URL dinamicamente para o teste local
     engine = create_engine(DB_URL)
     try:

@@ -10,18 +10,16 @@ if project_root not in sys.path:
 # Importa o flow de simulação
 from src.flows.resultados2 import simulacao_contingencia_flow
 
-# REMOVIDO: A importação de run_dash_server_as_subprocess não é mais necessária aqui.
+
 # from src.flows.visualizacao_impacto import run_dash_server_as_subprocess
 
-# REMOVIDO: A task launch_dash_app_orchestrator_task não é mais necessária aqui.
+
 # @task(name="Lançar Aplicação Dash", log_prints=True)
 # def launch_dash_app_orchestrator_task():
 #     """
-#     Task Prefect que invocava a função para lançar a aplicação Dash em subprocesso.
-#     Esta task foi removida do flow principal e não deve ser executada pelo schedule.
+#     Task Prefect que invoca a função para lançar a aplicação Dash em subprocesso.
 #     """
-#     print("Esta task de lançamento do Dash foi removida do flow orquestrador agendado.")
-#     # run_dash_server_as_subprocess() # Esta linha também foi removida ou a função não existe mais aqui
+#     # run_dash_server_as_subprocess()
 
 @flow(name="simulacao-e-visualizacao-orchestrator", log_prints=True)
 def simulacao_e_visualizacao_orchestrator(
@@ -45,14 +43,13 @@ def simulacao_e_visualizacao_orchestrator(
     print("Flow de simulação concluído. Dados salvos no PostgreSQL.")
     print("O Dash (se estiver rodando) buscará automaticamente os novos dados.")
 
-    # REMOVIDO: A chamada para a task de lançamento do Dash foi removida daqui.
     # print("Iniciando task para lançar a aplicação de visualização Dash...")
     # launch_dash_app_orchestrator_task()
 
     print("Flow orquestrador concluído.")
 
-# Para executar este orchestrator flow diretamente para teste (opcional)
+
 if __name__ == "__main__":
     print("Executando orchestrator_flow.py diretamente para teste...")
-    simulacao_e_visualizacao_orchestrator(n_cenarios=1) # Exemplo com 1 cenário para teste rápido
+    simulacao_e_visualizacao_orchestrator(n_cenarios=1) # Exemplo com 1 cenário
     print("Teste direto do orchestrator_flow concluído.")

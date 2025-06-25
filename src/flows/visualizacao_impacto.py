@@ -8,7 +8,7 @@ import time
 import sys
 import threading
 
-# --- Função para obter a URL de conexão do banco de dados ---
+# Função para obter a URL de conexão do banco de dados ---
 def get_db_url():
     """Retorna a URL de conexão do banco de dados, adaptando para o ambiente."""
     db_user = os.getenv('DB_USER', 'prefect')
@@ -19,7 +19,7 @@ def get_db_url():
     url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     return url
 
-# --- Função para Carregar os Dados do PostgreSQL ---
+# Função para Carregar os Dados do PostgreSQL
 def load_all_data_from_postgres():
     """
     Carrega TODOS os dados da tabela 'tensao_barras_nao_criticos' do PostgreSQL.
@@ -40,7 +40,7 @@ def load_all_data_from_postgres():
         print(f"ERRO: ao carregar todos os dados do PostgreSQL para visualização Dash: {e}")
         return pd.DataFrame()
 
-# --- Criar a Aplicação Dash ---
+# Criação da Aplicação Dash
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -58,21 +58,20 @@ app.layout = html.Div([
 
     html.Hr(),
 
-    html.Div(id='output-tables-container'), # Contêiner para as tabelas geradas
+    html.Div(id='output-tables-container'),
     
     # Componente para disparar atualizações periódicas
     dcc.Interval(
         id='interval-component',
-        interval=10 * 1000,  # Atualiza a cada 10 segundos (10000 ms)
+        interval=60 * 1000,  # Atualiza a cada 60 segundos (60000 ms)
         n_intervals=0
     ),
     html.Div(id='last-updated-time', style={'fontSize': 'small', 'color': 'gray', 'textAlign': 'right', 'marginRight': '10px'})
 ])
 
-# --- Callbacks ---
+# Callbacks
 
-# Callback para atualizar o dropdown com os cenários da ÚLTIMA execução
-# e a mensagem de última atualização
+# Callback para atualizar o dropdown com os cenários da ÚLTIMA execução e a mensagem de última atualização
 @app.callback(
     Output('dropdown-cenario', 'options'),
     Output('dropdown-cenario', 'value'),
@@ -99,7 +98,7 @@ def update_dropdown_and_data_status(n_intervals, current_scenario_value):
     # Gera as opções do dropdown com base nos cenários da última execução
     cenario_options = [{'label': f'Cenário {i}', 'value': i} for i in sorted(df_latest_run['cenario'].unique())]
     
-    # Tenta manter o cenário selecionado se ele ainda existir nos dados da última execução
+
     selected_value = current_scenario_value
     if selected_value not in df_latest_run['cenario'].unique():
         # Se o cenário atual não existe na última execução ou é nulo, selecione o primeiro novo cenário disponível
@@ -141,9 +140,6 @@ def update_output_tables(selected_cenario):
 
     # Re-extrair bus_ids com base nos dados atuais (melhor prática)
     cols_vm_pu_antes = [col for col in df_cenario_filtered.columns if col.startswith('vm_pu_antes_bus_')]
-    # Assumimos que as barras são numeradas sequencialmente a partir de 0 ou 1.
-    # Se suas barras têm IDs arbitrários (ex: 5, 10, 23), você precisaria de um mapeamento.
-    # Como IEEE 30 é de 0 a 29, range(30) é ok.
     bus_ids_numeric = sorted([int(col.replace('vm_pu_antes_bus_', '')) for col in cols_vm_pu_antes])
 
 
@@ -223,10 +219,10 @@ def run_dash_server_as_subprocess():
     print(f"DEBUG: Dash server iniciado em segundo plano na URL: http://127.0.0.1:8050/")
 
 
-# --- Ponto de Entrada Principal para a Aplicação Dash (se rodado diretamente) ---
+
 if __name__ == '__main__':
     # Quando este script é executado diretamente (e.g., para desenvolvimento ou inicialização manual),
-    # ele inicia o servidor Dash e abre o navegador UMA ÚNICA VEZ.
+    # ele inicia o servidor Dash e abre o navegador.
     print(f"Iniciando a aplicação Dash na URL: http://127.0.0.1:8050/")
-    webbrowser.open_new_tab("http://127.0.0.1:8050/") # Abre o navegador apenas uma vez
+    webbrowser.open_new_tab("http://127.0.0.1:8050/")
     app.run_server(debug=True, host='0.0.0.0', port=8050)

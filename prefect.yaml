@@ -1,14 +1,48 @@
-# prefect_orchestrator.yaml
-name: orchestrator-deploy
-prefect-version: 2.16.4 # Verifique sua versão do Prefect CLI (prefect -v)
+name: Trabalho_final
+prefect-version: 2.16.4
+
 
 deployments:
-  - name: simulacao-e-visualizacao-orchestrator-deployment
-    entrypoint: src/flows/orchestrator_flow.py:simulacao_e_visualizacao_orchestrator
-    parameters: {} # Deixe vazio para usar os defaults do flow, ou preencha aqui (ex: n_cenarios: 3)
-    work_pool:
-      name: artigo-pool # Nome do work pool que seu agente está escutando
-      work_queue_name: artigo-postgres # Nome da work queue que o agente está escutando (se você definiu uma)
-      job_variables: {} # Deixe vazio se estiver usando --type process no worker local
-    version: "1.0"
-    description: "Orquestrador para a simulação de contingências e o lançamento da visualização Dash."
+- name: deploy-flow
+  version: '1.0'
+  description: "FLOW: Orquestra a simulacao de contingencias N-1 na rede IEEE 30 barras,\n\
+    salvando os resultados e os dados de tensao para posterior analise de impacto."
+  entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
+  parameters: {}
+  work_pool:
+    name: artigo-pool
+    work_queue_name: artigo-postgres
+    job_variables:
+      image: prefecthq/prefect:2-python3.10
+      env:
+        PREFECT_API_URL: http://prefect-server:4200/api
+        DATABASE_HOST: postgres
+        DATABASE_PORT: '5432'
+        DATABASE_USER: prefect
+        DATABASE_PASSWORD: prefect
+        DATABASE_DBNAME: prefect
+  schedules: []
+  tags: []
+  pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: C:\Users\graz1\UFF\mestrado\Trabalho_final
+- name: simulacao-e-visualizacao-orchestrator-deployment
+  version:
+  tags: []
+  description: "FLOW: Orquestra a simulacao de contingencias e, em seguida,\nlanca
+    a aplicacao de visualizacao Dash."
+  entrypoint: 
+    src\flows\orchestrator_flow.py:simulacao_e_visualizacao_orchestrator
+  parameters: {}
+  work_pool:
+    name: artigo-pool
+    work_queue_name:
+    job_variables: {}
+  schedules:
+  - interval: 60.0
+    anchor_date: '2025-06-24T05:17:52.344688+00:00'
+    timezone: UTC
+    active: true
+  pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: C:\Users\graz1\UFF\mestrado\Trabalho_final
