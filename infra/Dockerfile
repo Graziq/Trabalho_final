@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # Instala todas as dependências de uma vez (incluindo psycopg2)
-RUN pip install --no-cache-dir -r requirements.txt prefect-docker psycopg2-binary
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Comando para iniciar o agente
-CMD ["prefect", "agent", "start", "-p", "default-agent-pool"]
+CMD ["prefect", "agent", "start", "-p", "artigo-pool", "-q", "queue-pool"]

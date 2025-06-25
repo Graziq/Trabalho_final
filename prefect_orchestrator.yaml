@@ -1,0 +1,14 @@
+# prefect_orchestrator.yaml
+name: orchestrator-deploy
+prefect-version: 2.16.4 # Verifique sua versão do Prefect CLI (prefect -v)
+
+deployments:
+  - name: simulacao-e-visualizacao-orchestrator-deployment
+    entrypoint: src/flows/orchestrator_flow.py:simulacao_e_visualizacao_orchestrator
+    parameters: {} # Deixe vazio para usar os defaults do flow, ou preencha aqui (ex: n_cenarios: 3)
+    work_pool:
+      name: artigo-pool # Nome do work pool que seu agente está escutando
+      work_queue_name: artigo-postgres # Nome da work queue que o agente está escutando (se você definiu uma)
+      job_variables: {} # Deixe vazio se estiver usando --type process no worker local
+    version: "1.0"
+    description: "Orquestrador para a simulação de contingências e o lançamento da visualização Dash."

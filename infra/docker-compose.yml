@@ -34,7 +34,7 @@ services:
     build:
       context: ..
       dockerfile: ./infra/Dockerfile
-    command: prefect agent start --pool artigo-pool
+    command: prefect agent start --pool artigo-pool --work-queue queue-pool
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
       - DB_USER=prefect

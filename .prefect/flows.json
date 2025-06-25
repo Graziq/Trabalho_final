@@ -1,3 +1,5 @@
 {
-  "simulacao-contingencia-ieee30": "src\\flows\\resultados2.py:simulacao_contingencia_flow"
+  "simulacao-contingencia-flow": "src\\flows\\resultados2.py:simulacao_contingencia_flow",
+  "simulacao-contingencia-ieee30": "src\\flows\\resultados2.py:simulacao_contingencia_flow",
+  "simulacao-e-visualizacao-orchestrator": "src\\flows\\orchestrator_flow.py:simulacao_e_visualizacao_orchestrator"
 }

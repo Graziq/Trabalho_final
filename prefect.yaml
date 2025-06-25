@@ -1,17 +1,44 @@
-name: meu-projeto
+name: Trabalho_final
 prefect-version: 2.16.4
 
+
 deployments:
-- name: resultados-deploy
-  version: null
-  tags: []
-  description: null
+- name: deploy-flow
+  version: '1.0'
+  description: "FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras,\n\
+    salvando os resultados e os dados de tensão para posterior análise de impacto."
   entrypoint: src/flows/resultados2.py:simulacao_contingencia_flow
+  parameters: {}
   work_pool:
     name: artigo-pool
-    work_queue_name: null
-    job_variables: {}
+    work_queue_name: artigo-postgres
+    job_variables:
+      image: prefecthq/prefect:2-python3.10
+      env:
+        PREFECT_API_URL: http://prefect-server:4200/api
+        DATABASE_HOST: postgres
+        DATABASE_PORT: '5432'
+        DATABASE_USER: prefect
+        DATABASE_PASSWORD: prefect
+        DATABASE_DBNAME: prefect
+  schedules: []
+- name: simulacao-e-visualizacao-orchestrator-deployment
+  version:
+  tags: []
+  description: "FLOW: Orquestra a simulação de contingências e, em seguida,\nlança
+    a aplicação de visualização Dash."
+  entrypoint: 
+    src\flows\orchestrator_flow.py:simulacao_e_visualizacao_orchestrator
   parameters: {}
-  schedule:
-    interval: 60
+  work_pool:
+    name: artigo-pool
+    work_queue_name:
+    job_variables: {}
+  schedules:
+  - interval: 60.0
+    anchor_date: '2025-06-24T05:17:52.344688+00:00'
+    timezone: UTC
     active: true
+  pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: C:\Users\graz1\UFF\mestrado\Trabalho_final
