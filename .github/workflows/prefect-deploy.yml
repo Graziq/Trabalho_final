@@ -21,55 +21,62 @@ jobs:
       - name: 📦 Instalar dependências
         run: |
           python -m pip install -U pip
-          # Garanta que todas as dependências do seu projeto (pandapower, pandas, etc.)
-          # estejam listadas no seu 'requirements.txt' na raiz do seu repositório.
-          # O 'griffe' já deve estar aqui.
           python -m pip install -r requirements.txt
-          python -m pip install "prefect==2.16.4" # Garante a versão específica do Prefect
+          python -m pip install "prefect==2.16.4"
           
           # Configura PYTHONPATH para Windows (PowerShell)
+          # Isso é crucial para que o Prefect encontre os módulos dentro de 'src'
           $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
         shell: powershell
 
       - name: 🔗 Configurar conexão com Prefect Server remoto
         run: |
+          # Define a URL da API do seu Prefect Server usando um secret do GitHub
           prefect config set PREFECT_API_URL="${{ secrets.PREFECT_SERVER_URL }}/api"
           Write-Host "URL da API do Prefect configurada."
           prefect profile ls # Opcional: Para verificar o perfil ativo
         shell: powershell
 
-      - name: 🚀 Deploy dos Flows
+      - name: 🚀 Deploy dos Flows (Usando -n, conforme sua indicação)
         run: |
           $max_retries = 5
           $retry_delay_seconds = 5
           
+          # Lista dos nomes das deployments a serem atualizadas.
+          # A sintaxe 'prefect deploy -n <nome_da_deployment>' implica que o Prefect
+          # conseguirá encontrar o flow correspondente no ambiente atual (diretórios, PYTHONPATH).
+          # Isso é o que você indicou que funciona para você.
           $deployments_to_update = @(
-              @{ Name = "simulacao-e-visualizacao-orchestrator-deployment"; Path = "src/flows/orchestrator_flow.py" },
-              @{ Name = "simulacao-contingencia-flow/deploy-flow"; Path = "src/flows/resultados2.py" }
+              "simulacao-e-visualizacao-orchestrator-deployment",
+              "simulacao-contingencia-flow/deploy-flow"
           )
 
-          foreach ($deployment in $deployments_to_update) {
+          foreach ($deployment_name in $deployments_to_update) {
             $attempt = 0
             $success = $false
-            Write-Host "Iniciando deploy para $($deployment.Name) a partir de $($deployment.Path)..."
+            Write-Host "Iniciando deploy para a deployment: $($deployment_name)..."
 
             while ($attempt -lt $max_retries -and -not $success) {
               $attempt++
-              Write-Host "Tentativa $($attempt) de $($max_retries) para o deploy de $($deployment.Name)..."
+              Write-Host "Tentativa $($attempt) de $($max_retries) para o deploy de $($deployment_name)..."
               
-              prefect deploy --name "$($deployment.Name)" --path "$($deployment.Path)"
+              # Executa o deploy usando a sintaxe -n
+              # Este comando atualizará a deployment existente com o código mais recente
+              # presumindo que o Prefect possa encontrar o flow no PYTHONPATH configurado.
+              prefect deploy -n "$($deployment_name)"
               
               if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Deploy de $($deployment.Name) realizado com sucesso!"
+                Write-Host "✅ Deploy de $($deployment_name) realizado com sucesso!"
                 $success = $true
               } else {
-                Write-Host "❌ Deploy de $($deployment.Name) falhou. Aguardando $($retry_delay_seconds) segundos antes de tentar novamente..."
+                Write-Host "❌ Deploy de $($deployment_name) falhou. Aguardando $($retry_delay_seconds) segundos antes de tentar novamente..."
+                Write-Host "Erro detalhado (código de saída): $LASTEXITCODE"
                 Start-Sleep -Seconds $retry_delay_seconds
               }
             }
 
             if (-not $success) {
-              Write-Error "O deploy de $($deployment.Name) falhou após $($max_retries) tentativas."
+              Write-Error "O deploy da deployment $($deployment_name) falhou após $($max_retries) tentativas."
               exit 1 # Força a falha do passo no GitHub Actions
             }
           }
