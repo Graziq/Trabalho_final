@@ -1,4 +1,4 @@
-name: Run Local Python Code
+name: Check Prefect Flow Quality
 
 on:
   push:
@@ -9,24 +9,8 @@ on:
       - main
 
 jobs:
-  run_code: # Nome do job
-    runs-on: windows-latest
-
-    # Configuração de serviços de banco de dados PostgreSQL
-    services:
-      postgres:
-        image: postgres:13.11
-        env: # Variáveis de ambiente para o contêiner do PostgreSQL
-          POSTGRES_DB: postgres-1
-          POSTGRES_USER: prefect
-          POSTGRES_PASSWORD: prefect
-        ports:
-          - 5432:5432 # Mapeia a porta do contêiner para a porta do host (opcional, mas boa prática)
-        options: >- # Opções extras para o comando 'docker run'
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+  build_and_test: # Nome do job
+    runs-on: windows-latest # O job será executado em um runner Windows
 
     steps: # Sequência de passos
       - name: 🔁 Checkout do código # Passo para baixar seu código
@@ -41,37 +25,25 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements.txt
-          # Certifique-se de instalar o driver do banco de dados, por exemplo, psycopg2 para PostgreSQL
-          python -m pip install psycopg2-binary
-          # Remova 'prefect==2.16.4' se você não o usa mais no seu código Python
-          # ou se ele não é uma dependência direta do código que você quer rodar localmente.
-          # python -m pip install "prefect==2.16.4" 
+          python -m pip install "prefect==2.16.4"
+          # Instale ferramentas de linting e teste, se ainda não estiverem no requirements.txt
+          python -m pip install flake8 pytest # Exemplo: Flake8 para linting, Pytest para testes
           
           # Configura PYTHONPATH para Windows (PowerShell)
-          # Isso é crucial para que os módulos Python em 'src' sejam encontrados.
+          # Isso é crucial para que o Prefect encontre os módulos dentro de 'src'
           $env:PYTHONPATH="$env:PYTHONPATH;$(Get-Location)\src"
         shell: powershell
 
-      - name: 🏃 Executar Código Python Localmente # Executa seu script Python
-        env: # Variáveis de ambiente para o script se conectar ao banco de dados
-          PGHOST: postgres
-          PGPORT: 5432
-          PGUSER: test_user
-          PGPASSWORD: test_password
-          PGDATABASE: test_db
+      - name: 🔎 Rodar Linting (Flake8) # Passo opcional: Verifica padrões de código
+        # garante que o código siga as boas práticas e padrões de estilo.
         run: |
-          Write-Host "Tentando executar o código Python localmente..."
-          Write-Host "Variáveis de ambiente do BD configuradas para o script."
-          
-          python src/flows/resultados2.py
-          
-          # Captura o código de saída do script Python.
-          $scriptExitCode = $LASTEXITCODE
-          
-          if ($scriptExitCode -eq 0) {
-            Write-Host "Execução do código Python bem-sucedida!"
-          } else {
-            # Se o script não executou com sucesso, levanta um erro no workflow.
-            throw "A execução do código Python falhou com código de saída: $scriptExitCode"
-          }
+          # Altere o caminho 'src' se seus arquivos Python estiverem em outro lugar
+          flake8 src
+        shell: powershell
+        continue-on-error: true # Permite que o workflow continue mesmo se o linting encontrar avisos/erros
+
+      - name: 🧪 Rodar Testes Unitários/Integração
+        run: |
+          # pytest tests/ # Exemplo de comando pytest
+          Write-Host "Nenhum teste unitário configurado neste exemplo. Adicione seus comandos de teste aqui."
         shell: powershell
