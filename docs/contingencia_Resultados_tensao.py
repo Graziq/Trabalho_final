@@ -93,7 +93,7 @@ def gerar_dados_cenario(net, cenario_id=None):
         q_mvar_min_original = net.gen.at[idx, 'q_mvar_min'] # Limite mínimo de reativos original
         q_mvar_max_original = net.gen.at[idx, 'q_mvar_max'] # Limite máximo de reativos original
         
-        # Aplica uma variação aleatória de +/- 5% na potência ativa do gerador.
+        # variação aleatória de +/- 5% na potência ativa do gerador.
         dados[f'gen_p_mw_{idx}'] = p_original * random.uniform(0.95, 1.05)
         
         # Se o gerador for a barra slack, sua tensão é mantida fixa.
@@ -114,8 +114,7 @@ def gerar_dados_cenario(net, cenario_id=None):
         # Mantém o status 'slack' do gerador.
         dados[f'gen_slack_{idx}'] = net.gen.at[idx, 'slack']
 
-    # --- Variação para Shunts (Potência Reativa 'Q') ---
-    # Só aplica variação se existirem shunts na rede.
+    # --- Variação para Shunts (Potência Reativa 'Q') --- 
     if not net.shunt.empty:
         for idx in net.shunt.index:
             q_original = net.shunt.at[idx, 'q_mvar'] # Potência reativa original do shunt
@@ -125,7 +124,7 @@ def gerar_dados_cenario(net, cenario_id=None):
     # Adiciona o ID do cenário aos dados gerados.
     if cenario_id is not None:
         dados['cenario'] = cenario_id
-    return dados # Retorna o dicionário com os dados variados
+    return dados 
 
 def aplicar_dados_ao_net(net, dados):
     """
@@ -151,7 +150,7 @@ def aplicar_dados_ao_net(net, dados):
             net.shunt.at[idx, 'q_mvar'] = dados[f'shunt_q_mvar_{idx}']
 
 
-def simular_cenarios(n_cenarios=3):
+def simular_cenarios(n_cenarios=1):
     """
     Simula múltiplos cenários de contingência (desligamento de linhas)
     na rede IEEE 30 barras, aplicando variações aleatórias.
