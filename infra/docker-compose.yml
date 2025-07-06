@@ -23,8 +23,6 @@ services:
     command: prefect server start --host 0.0.0.0 --port 4200
     ports:
       - "4200:4200"
-    volumes:
-      - prefect_data:/root/.prefect
     depends_on:
       - postgres
     networks:
@@ -46,6 +44,23 @@ services:
       - ../:/app
     depends_on:
       - prefect-server
+    networks:
+      - prefect-net
+
+  dash-app:
+    build:
+      context: ..
+      dockerfile: ./infra/Dockerfile.dash
+    ports:
+      - "8050:8050"
+    environment:
+      - DB_USER=prefect
+      - DB_PASSWORD=prefect
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=prefect
+    depends_on:
+      - postgres
     networks:
       - prefect-net
 
