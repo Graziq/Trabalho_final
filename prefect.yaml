@@ -46,3 +46,23 @@ deployments:
   pull:
   - prefect.deployments.steps.set_working_directory:
       directory: C:\Users\graz1\UFF\mestrado\Trabalho_final
+- name: simulacao-e-visualizacao-orchestrator-deployment
+  version:
+  tags: []
+  description: "FLOW: Orquestra a simulacao de contingencias e, em seguida,\nlanca
+    a aplicacao de visualizacao Dash."
+  entrypoint: 
+    src/flows/orchestrator_flow.py:simulacao_e_visualizacao_orchestrator
+  parameters: {}
+  work_pool:
+    name: artigo-pool
+    work_queue_name: queue-pool
+    job_variables: {}
+  schedules:
+  - interval: 60.0
+    anchor_date: '2025-06-24T05:17:52.344688+00:00'
+    timezone: UTC
+    active: true
+  pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: C:\Users\graz1\UFF\mestrado\Trabalho_final
