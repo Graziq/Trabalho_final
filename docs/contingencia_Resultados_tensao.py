@@ -18,94 +18,80 @@ from pandapower.topology import create_nxgraph # Importa para criar um grafo da 
 import networkx as nx # Importa para análise de grafos (conectividade, ilhamento)
 import pandas as pd # Importa para manipulação de dados em formato de tabelas (DataFrames)
 import numpy as np # Importa para operações numéricas, como NaN (Not a Number)
+from random import gauss
 
 def criar_rede_ieee30_slack_bar():
-    """
-    Cria a rede IEEE 30 barras e configura a barra slack, 
-    garantindo que os limites de reativos dos geradores estejam bem definidos.
-    """
-    net = pn.case30() # Carrega a rede de teste IEEE 30 barras
-
-    # --- Garante que as colunas de limites de reativos existam e tenham valores numéricos ---
-    # O pandapower.networks pode não incluir essas colunas por padrão ou elas podem ser NaN.
-    # Esta etapa as cria se não existirem e as inicializa com 0.0.
-    if 'q_mvar_min' not in net.gen.columns:
-        net.gen['q_mvar_min'] = 0.0 # Cria a coluna para limite mínimo de reativos
-    if 'q_mvar_max' not in net.gen.columns:
-        net.gen['q_mvar_max'] = 0.0 # Cria a coluna para limite máximo de reativos
-
-    # Percorre cada gerador na rede para ajustar seus limites de reativos.
+    """Cria a rede IEEE 30 barras com limites exatos do caso original"""
+    net = pn.case30()
+    
+    # --- Configuração dos limites de tensão ---
+    net.bus["max_vm_pu"] = 1.06  # Vmax para todas as barras
+    net.bus["min_vm_pu"] = 0.94   # Vmin para todas as barras
+    
+    # --- Configuração dos limites dos geradores ---
+    limites_geradores = {
+        1: {'p_mw': (0, 360.2), 'q_mvar': (0, 10)},    # Barra 1 (SLACK)
+        2: {'p_mw': (0, 140), 'q_mvar': (-40, 50)},     # Barra 2
+        5: {'p_mw': (0, 100), 'q_mvar': (-40, 40)},     # Barra 5
+        8: {'p_mw': (0, 100), 'q_mvar': (-10, 40)},     # Barra 8
+        11: {'p_mw': (0, 100), 'q_mvar': (-6, 24)},     # Barra 11
+        13: {'p_mw': (0, 100), 'q_mvar': (-6, 24)}      # Barra 13
+    }
+    
     for idx in net.gen.index:
-        q_min = net.gen.at[idx, 'q_mvar_min'] # Obtém o limite mínimo atual
-        q_max = net.gen.at[idx, 'q_mvar_max'] # Obtém o limite máximo atual
-
-        # Se o limite mínimo for NaN ou 0.0 (que pode indicar um limite indefinido ou ausente),
-        # define um valor padrão de -50 Mvar.
-        if pd.isna(q_min) or q_min == 0.0:
-            net.gen.at[idx, 'q_mvar_min'] = -50.0
-        
-        # Se o limite máximo for NaN ou 0.0, define um valor padrão de +50 Mvar.
-        if pd.isna(q_max) or q_max == 0.0:
-            net.gen.at[idx, 'q_mvar_max'] = 50.0
-            
-    # --- Lógica para definir a barra slack ---
-    # A barra slack (ou barra de referência) é essencial para o fluxo de potência,
-    # pois ela absorve a diferença entre a geração e a demanda total.
-    net.gen['slack'] = False # Inicializa todos os geradores como não-slack
-
-    # Tenta encontrar um gerador na barra 0 (comum em sistemas de teste como o IEEE 30).
-    gen_idx_at_bus0 = net.gen[net.gen['bus'] == 0].index
+        bus = net.gen.at[idx, 'bus']
+        if bus in limites_geradores:
+            net.gen.at[idx, 'max_q_mvar'] = limites_geradores[bus]['q_mvar'][1]
+            net.gen.at[idx, 'min_q_mvar'] = limites_geradores[bus]['q_mvar'][0]
+            net.gen.at[idx, 'max_p_mw'] = limites_geradores[bus]['p_mw'][1]
+            net.gen.at[idx, 'min_p_mw'] = limites_geradores[bus]['p_mw'][0]
     
-    # Se um gerador for encontrado na barra 0, define o primeiro deles como slack.
-    if not gen_idx_at_bus0.empty:
-        net.gen.at[gen_idx_at_bus0[0], 'slack'] = True
-    else:
-        # Se não houver gerador na barra 0, cria um novo gerador e o define como slack.
-        # Adiciona limites de reativos padrão para este novo gerador.
-        pp.create_gen(net, bus=0, p_mw=0, vm_pu=1.0, slack=True, q_mvar_min=-50, q_mvar_max=50) 
+    # --- Configuração da barra slack ---
+    # Remove a lógica da barra 0 e define a barra 1 como slack (caso original)
+    net.gen['slack'] = False
+    net.gen.loc[net.gen['bus'] == 1, 'slack'] = True  # Barra 1 é a slack
     
-    return net # Retorna a rede configurada
+    return net
 
 def gerar_dados_cenario(net, cenario_id=None):
-    """
-    Gera um conjunto de dados aleatórios para um cenário específico,
-    introduzindo variações nas cargas e geradores da rede.
-    """
-    dados = {} # Dicionário para armazenar os dados variados do cenário
+    dados = {}
     
-    # --- Variação para Cargas (Potência Ativa 'P_mw' e Reativa 'Q_mvar') ---
-    # Itera sobre cada carga na rede.
+    # --- Cargas ---
     for idx in net.load.index:
-        p_original = net.load.at[idx, 'p_mw'] # Potência ativa original da carga
-        q_original = net.load.at[idx, 'q_mvar'] # Potência reativa original da carga
+        p_original = net.load.at[idx, 'p_mw']
+        q_original = net.load.at[idx, 'q_mvar']
         
-        # Aplica uma variação aleatória de +/- 5% na potência ativa.
-        dados[f'carga_p_mw_{idx}'] = p_original * random.uniform(0.95, 1.05)
-        # Aplica uma variação aleatória de +/- 10% na potência reativa.
-        dados[f'carga_q_mvar_{idx}'] = q_original * random.uniform(0.90, 1.10)
+        # Opção 1: Variações independentes (ajustadas)
+        dados[f'carga_p_mw_{idx}'] = p_original * random.uniform(0.98, 1.02)  # ±2% P
+        dados[f'carga_q_mvar_{idx}'] = q_original * random.uniform(0.98, 1.02)  # ±2% Q (igual a P)
+        
+        # Ou Opção 2: Manter fator de potência constante
+        # variacao = random.uniform(0.98, 1.02)
+        # dados[f'carga_p_mw_{idx}'] = p_original * variacao
+        # dados[f'carga_q_mvar_{idx}'] = q_original * variacao
 
-    # --- Variação para Geradores (Potência Ativa 'P', Tensão 'Vm' e Limites de Reativos 'Qmin/Qmax') ---
-    # Itera sobre cada gerador na rede.
+    # --- Geradores ---
     for idx in net.gen.index:
-        p_original = net.gen.at[idx, 'p_mw'] # Potência ativa original do gerador
-        vm_original = net.gen.at[idx, 'vm_pu'] # Tensão original em pu do gerador (aplicável a geradores PV)
+        p_original = net.gen.at[idx, 'p_mw']
+        vm_original = net.gen.at[idx, 'vm_pu']
         
-        q_mvar_min_original = net.gen.at[idx, 'q_mvar_min'] # Limite mínimo de reativos original
-        q_mvar_max_original = net.gen.at[idx, 'q_mvar_max'] # Limite máximo de reativos original
-        
-        # variação aleatória de +/- 5% na potência ativa do gerador.
+        # P ativa: ±5% (adequado para redespacho)
         dados[f'gen_p_mw_{idx}'] = p_original * random.uniform(0.95, 1.05)
         
-        # Se o gerador for a barra slack, sua tensão é mantida fixa.
+        # Tensão: ±1% para geradores PV
         if net.gen.at[idx, 'slack']:
             dados[f'gen_vm_pu_{idx}'] = vm_original
         else:
-            # Para geradores PV (onde a tensão é controlada), aplica uma variação de +/- 0.5% na tensão.
-            dados[f'gen_vm_pu_{idx}'] = vm_original * random.uniform(0.995, 1.005)
+            dados[f'gen_vm_pu_{idx}'] = vm_original * random.uniform(0.99, 1.01)
 
-        # Variação dos limites de reativos Qmin/Qmax: +/- 10%.
-        new_q_mvar_min = q_mvar_min_original * random.uniform(0.90, 1.10)
-        new_q_mvar_max = q_mvar_max_original * random.uniform(0.90, 1.10)
+        # Limites de reativo: ±10% (bom para testar limites)
+        #calcula o centro entre qmax e qmin para manter a assimetria entre Q e P
+        q_range = net.gen.at[idx, 'q_mvar_max'] - net.gen.at[idx, 'q_mvar_min']
+        new_center = (net.gen.at[idx, 'q_mvar_min'] + net.gen.at[idx, 'q_mvar_max'])/2 * random.uniform(0.95,1.05)
+        new_q_mvar_min = new_center - q_range/2 * random.uniform(0.9,1.1)
+        new_q_mvar_max = new_center + q_range/2 * random.uniform(0.9,1.1)
+        dados[f'gen_q_mvar_min_{idx}'] = min(new_q_mvar_min, new_q_mvar_max)
+        dados[f'gen_q_mvar_max_{idx}'] = max(new_q_mvar_min, new_q_mvar_max)
         
         # Garante que o novo limite mínimo não seja maior que o novo limite máximo.
         dados[f'gen_q_mvar_min_{idx}'] = min(new_q_mvar_min, new_q_mvar_max)
@@ -115,11 +101,11 @@ def gerar_dados_cenario(net, cenario_id=None):
         dados[f'gen_slack_{idx}'] = net.gen.at[idx, 'slack']
 
     # --- Variação para Shunts (Potência Reativa 'Q') --- 
-    if not net.shunt.empty:
-        for idx in net.shunt.index:
-            q_original = net.shunt.at[idx, 'q_mvar'] # Potência reativa original do shunt
-            # Aplica uma variação aleatória de +/- 10% na potência reativa do shunt.
-            dados[f'shunt_q_mvar_{idx}'] = q_original * random.uniform(0.90, 1.10)
+    # if not net.shunt.empty:
+    #     for idx in net.shunt.index:
+    #         q_original = net.shunt.at[idx, 'q_mvar'] # Potência reativa original do shunt
+    #         # Aplica uma variação aleatória de +/- 10% na potência reativa do shunt.
+    #         dados[f'shunt_q_mvar_{idx}'] = q_original * random.uniform(0.90, 1.10)
 
     # Adiciona o ID do cenário aos dados gerados.
     if cenario_id is not None:
@@ -169,7 +155,7 @@ def simular_cenarios(n_cenarios=1):
     net_base = criar_rede_ieee30_slack_bar() # Cria a rede base (sem variações ou contingências)
 
     # Executa o fluxo de potência inicial para a rede base e imprime alguns resultados.
-    pp.runpp(net_base, numba=False, init='flat')
+    pp.runpp(net_base, numba=True, init='flat')
     print("Rede base carregada:")
     print(f" - Tensão mínima: {net_base.res_bus.vm_pu.min():.4f} pu")
     print(f" - Tensão máxima: {net_base.res_bus.vm_pu.max():.4f} pu")
@@ -177,9 +163,11 @@ def simular_cenarios(n_cenarios=1):
     print("------")
 
     # Define os limites de operação para avaliação de criticidade
-    vmax = 1.093 # Tensão máxima permitida em pu
-    vmin = 0.94 # Tensão mínima permitida em pu
-    line_loading_max = 120 # Carregamento máximo de linha permitido em porcentagem
+    vmax = 1.06  # Tensão máxima do caso IEEE 30
+    vmin = 0.94   # Tensão mínima do caso IEEE 30
+    line_loading_max = 100 # Carregamento máximo de linha permitido em porcentagem, no caso IEEE não existe esse limite, estou colocando para tornar mais realista.
+#Se eu usar float('inf'), todas as linhas passarão como "não críticas" mesmo sobrecarregadas (irrealista).
+#o ideal é usar um limite para cada linha, estou generalizando para fins de estudo.
 
     resultados_globais = [] # Lista para armazenar todos os resultados de contingência (críticos e não críticos)
     tensao_cenarios_nao_criticos_para_csv = [] # Lista para armazenar dados de tensão APENAS de cenários não críticos
@@ -246,7 +234,7 @@ def simular_cenarios(n_cenarios=1):
             else:
                 # --- Execução do Fluxo de Potência Pós-Contingência ---
                 try:
-                    pp.runpp(net, numba=False, init='flat') # Tenta rodar o fluxo de potência
+                    pp.runpp(net, numba=True, init='flat') # Tenta rodar o fluxo de potência
                     
                     # Se convergiu, armazena as tensões resultantes.
                     tensao_apos_contingencia = net.res_bus.vm_pu.to_dict()
