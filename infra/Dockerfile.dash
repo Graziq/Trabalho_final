@@ -3,10 +3,14 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-COPY ../ /app
+# Copia o conteúdo da pasta "infra" e a pasta "src" para /app
+# Certifique-se de que requirements.txt esteja na pasta "infra" OU em "src"
+COPY . /app 
 
 RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8050
 
+# O caminho deve ser relativo ao WORKDIR /app
+# Se 'src' for copiado para dentro de '/app', o caminho será '/app/src/flows/visualizacao_impacto.py'
 CMD ["python", "src/flows/visualizacao_impacto.py"]

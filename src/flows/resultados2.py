@@ -14,7 +14,8 @@ import sys
 import os
 import json
 from sqlalchemy import create_engine, text # Para conexão com o banco de dados e execução de comandos SQL
-
+from datetime import datetime
+from pytz import timezone
 
 
 def get_db_url():
@@ -208,7 +209,8 @@ def criar_tabelas_postgres():
                             ilhamento BOOLEAN,
                             num_componentes_conectados INTEGER,
                             convergencia BOOLEAN,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            execution_timestamp TIMESTAMP WITH TIME ZONE NOT NULL
                         );""",
                     'tensao_barras_nao_criticos': """
                         CREATE TABLE IF NOT EXISTS tensao_barras_nao_criticos (
@@ -221,7 +223,8 @@ def criar_tabelas_postgres():
                             """ + ",\n".join([f"vm_pu_antes_bus_{i} NUMERIC" for i in range(30)]) + """,
                             -- Geração dinâmica das colunas vm_pu_depois_bus_X
                             """ + ",\n".join([f"vm_pu_depois_bus_{i} NUMERIC" for i in range(30)]) + """,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            execution_timestamp TIMESTAMP WITH TIME ZONE NOT NULL
                         );""",
                     'impacto_tensao_barras': """
                         CREATE TABLE IF NOT EXISTS impacto_tensao_barras (
@@ -229,7 +232,8 @@ def criar_tabelas_postgres():
                             cenario INTEGER,
                             linha_desligada INTEGER,
                             impacto_por_barra JSONB,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            execution_timestamp TIMESTAMP WITH TIME ZONE NOT NULL
                         );"""
                 }
 
@@ -261,7 +265,7 @@ def criar_tabelas_postgres():
     return False
 
 @task
-def salvar_resultados_globais_postgres(resultados, table_name='resultados_simulacao'):
+def salvar_resultados_globais_postgres(resultados, execution_timestamp, table_name='resultados_simulacao'):
     """
     Salva os resultados globais de todas as contingências no PostgreSQL.
     """
@@ -270,6 +274,7 @@ def salvar_resultados_globais_postgres(resultados, table_name='resultados_simula
         return
 
     df_resultados_finais = pd.DataFrame(resultados)
+    df_resultados_finais['execution_timestamp'] = execution_timestamp
 
     DB_URL = get_db_url() # <-- Chama a função auxiliar aqui também!
     engine = create_engine(DB_URL) # <-- Cria o engine localmente para a task
@@ -288,7 +293,7 @@ def salvar_resultados_globais_postgres(resultados, table_name='resultados_simula
         print(f"Erro ao salvar resultados globais no PostgreSQL: {e}")
 
 @task
-def salvar_tensao_nao_criticos_postgres(tensao_data, table_name='tensao_barras_nao_criticos', num_barras=30):
+def salvar_tensao_nao_criticos_postgres(tensao_data, execution_timestamp, table_name='tensao_barras_nao_criticos', num_barras=30):
     """
     Salva os dados de tensão para contingências NÃO CRÍTICAS no PostgreSQL no formato expandido.
     """
@@ -316,6 +321,7 @@ def salvar_tensao_nao_criticos_postgres(tensao_data, table_name='tensao_barras_n
         processed_data_flat.append(flat_row)
 
     df_tensao_nao_criticos = pd.DataFrame(processed_data_flat)
+    df_tensao_nao_criticos['execution_timestamp'] = execution_timestamp
 
     # Garante que as colunas de tensão são numéricas (podem vir como object se houver NaN ou se forem strings)
     for col in df_tensao_nao_criticos.columns:
@@ -354,24 +360,28 @@ def analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_critico
     engine = create_engine(DB_URL)
 
     try:
-        # A query seleciona todas as colunas de tensão explicitamente
-        # Isso garante que o DataFrame retornado já venha no formato expandido
-        columns_to_select = ['cenario', 'linha_desligada', 'from_bus', 'to_bus'] + \
-                            [f'vm_pu_antes_bus_{i}' for i in range(num_barras)] + \
-                            [f'vm_pu_depois_bus_{i}' for i in range(num_barras)]
-        
-        query = f"SELECT {', '.join(columns_to_select)} FROM {table_name_input};"
-        
         with engine.connect() as connection:
-            df_tensao = pd.read_sql(text(query), connection)
+            # Encontra o último execution_timestamp para garantir que você analise apenas a rodada mais recente
+            latest_execution_timestamp_query = text(f"SELECT MAX(execution_timestamp) FROM {table_name_input};")
+            latest_timestamp = connection.execute(latest_execution_timestamp_query).scalar()
+
+            if latest_timestamp:
+                print(f"Analisando dados da execução mais recente: {latest_timestamp}")
+                # A query agora filtra pelo execution_timestamp
+                columns_to_select = ['cenario', 'linha_desligada', 'from_bus', 'to_bus'] + \
+                                    [f'vm_pu_antes_bus_{i}' for i in range(num_barras)] + \
+                                    [f'vm_pu_depois_bus_{i}' for i in range(num_barras)]
+
+                query = text(f"SELECT {', '.join(columns_to_select)} FROM {table_name_input} WHERE execution_timestamp = :latest_ts;")
+                df_tensao = pd.read_sql(query, connection, params={'latest_ts': latest_timestamp})
+            else:
+                print(f"Nenhum dado encontrado na tabela '{table_name_input}' para análise de impacto.")
+                return pd.DataFrame() # Retorna um DataFrame vazio se não houver dados
+
         print(f"Dados carregados com sucesso da tabela '{table_name_input}'.")
     except Exception as e:
         print(f"Erro ao carregar dados de tensão do PostgreSQL para análise de impacto: {e}")
-        return
-
-    if df_tensao.empty:
-        print("DataFrame de entrada para análise de impacto está vazio. Nenhuma análise será realizada.")
-        return
+        return pd.DataFrame()
 
     resultados_impacto_novo_formato = []
 
@@ -426,8 +436,8 @@ def analisar_impacto_tensao_postgres(table_name_input='tensao_barras_nao_critico
 
 ## FLOW 1: Simulação de Contingências
 
-@flow(name="simulacao-contingencia-")
-def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: float = 0.94, line_loading_max: float = 120):
+@flow(name="simulacao-contingencia-flow")
+def simulacao_contingencia_flow(n_cenarios: int = 1, vmax: float = 1.093, vmin: float = 0.94, line_loading_max: float = 120):
     """
     FLOW: Orquestra a simulação de contingências N-1 na rede IEEE 30 barras,
     salvando os resultados e os dados de tensão para posterior análise de impacto no PostgreSQL.
@@ -438,6 +448,10 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
 
     # Garante que as tabelas existem antes de começar a inserir dados
     criar_tabelas_postgres()
+
+    tz = timezone('America/Sao_Paulo') # Ou 'UTC' se preferir tudo em UTC
+    current_flow_execution_time = datetime.now(tz)
+    print(f"DEBUG: Timestamp da execução do Flow: {current_flow_execution_time}")
 
     # 1. Carrega a rede base
     net_base = criar_rede_ieee30_slack_bar()
@@ -556,10 +570,10 @@ def simulacao_contingencia_flow(n_cenarios: int = 2, vmax: float = 1.093, vmin: 
             print(f"\n--- Resumo Cenário {cenario_id}: Nenhuma criticidade ou ilhamento detectado. ---")
 
     # 8. Salva os resultados globais no PostgreSQL
-    salvar_resultados_globais_postgres(resultados_globais)
+    salvar_resultados_globais_postgres(resultados_globais, current_flow_execution_time)
 
     # 9. Salva os dados de tensão para contingências NÃO CRÍTICAS no PostgreSQL
-    salvar_tensao_nao_criticos_postgres(tensao_cenarios_nao_criticos_para_db, num_barras=len(net_base_result.bus.index))
+    salvar_tensao_nao_criticos_postgres(tensao_cenarios_nao_criticos_para_db, current_flow_execution_time, num_barras=len(net_base_result.bus.index))
 
 ## FLOW 2: Análise de Impacto (Separado)
 
@@ -580,7 +594,7 @@ def analise_impacto_flow(num_barras: int = 30):
 ## Execução Principal do Script
 
 
-n_cenarios_simulacao = 3
+n_cenarios_simulacao = 1
 
 if __name__ == "__main__":
     DB_URL = get_db_url() # Obtenha a URL dinamicamente para o teste local
@@ -591,7 +605,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ PostgreSQL connection failed: {e}")
     
-    n_cenarios_simulacao = 2
+    n_cenarios_simulacao = 1
 
     print(f"--- Executando o Flow de Simulação de Contingências ---")
     simulacao_contingencia_flow(n_cenarios=n_cenarios_simulacao)

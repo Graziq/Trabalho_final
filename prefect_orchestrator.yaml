@@ -7,7 +7,7 @@ deployments:
     parameters: {}
     work_pool:
       name: artigo-pool # Nome do work pool
-      work_queue_name: queue-pool # Nome da work queue, normalmente é default
+      work_queue_name: queue-pool # Nome da work queue, normalmente é dxfault
       job_variables: {} # vazio ao usar --type process
     version: "1.0"
     description: "Orquestrador para a simulação de contingências e o lançamento da visualização Dash."
